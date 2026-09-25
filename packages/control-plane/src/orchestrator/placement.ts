@@ -233,6 +233,8 @@ function gatedBindRules(channels: IntegrationChannelRecord[]): IntegrationBindRu
   const out: IntegrationBindRule[] = []
   for (const c of channels) {
     if (c.trigger === 'off') continue
+    // mention_topic is deliberately NOT branched here: it wants the mention rule below.
+    // A future trigger that wants NO kind rule must branch BEFORE the fallthrough.
     if (c.kind === 'im') out.push({ channel: c.channelId, match: { kind: 'dm' } })
     else if (c.trigger === 'any') out.push({ channel: c.channelId, match: { kind: 'auto' } })
     else out.push({ channel: c.channelId, match: { kind: 'mention' } })
@@ -256,6 +258,13 @@ function gatedBindRules(channels: IntegrationChannelRecord[]): IntegrationBindRu
 function mutedChannelIds(channels: IntegrationChannelRecord[], gated: boolean): string[] {
   if (gated) return []
   return channels.filter((c) => c.trigger === 'off').map((c) => c.channelId)
+}
+
+/** The explicit-address conversations of an integration — its `affinityDenied` fence.
+ *  Unlike `mutedChannels` this is NOT skipped when gated: Off is expressed by the missing
+ *  scoped rule, but affinity denial is orthogonal to the grant. */
+function affinityDeniedChannelIds(channels: IntegrationChannelRecord[]): string[] {
+  return channels.filter((c) => c.trigger === 'mention_topic').map((c) => c.channelId)
 }
 
 /**
@@ -290,6 +299,7 @@ export async function integrationToSpec(
     .map((c) => ({ channel: c.channelId, match: { kind: 'auto' as const } }))
   const bindRules = gated ? gatedBindRules(channels) : [...DEFAULT_BIND_RULES, ...channelRules]
   const mutedChannels = mutedChannelIds(channels, gated)
+  const affinityDenied = affinityDeniedChannelIds(channels)
   // §6.4 final shape: envelope + opaque config. The daemon takes the routing
   // knobs from `core` (its platform module validates `config` against its own
   // schema); the config payload never duplicates them.
@@ -299,7 +309,7 @@ export async function integrationToSpec(
   // the Feishu WSClient). The 'shared' envelope is assembled by
   // {@link httpIntegrationToSpec}; the two differ ONLY in this envelope, which is
   // why the fork stays core and the payload behind it does not.
-  const core = { mode: 'direct' as const, bindRules, mutedChannels, gated }
+  const core = { mode: 'direct' as const, bindRules, mutedChannels, affinityDenied, gated }
   return projectSpec(platforms, i, bot, core, secret)
 }
 
@@ -337,6 +347,7 @@ export async function httpIntegrationToSpec(
     mode: 'shared' as const,
     bindRules: gated ? gatedBindRules(channels) : [],
     mutedChannels: mutedChannelIds(channels, gated),
+    affinityDenied: affinityDeniedChannelIds(channels),
     gated
   }
   return projectSpec(platforms, i, bot, httpCore, secret)
