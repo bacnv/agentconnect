@@ -354,6 +354,56 @@ describe('canonicalizeTelegramThread', () => {
     expect(m.thread).toBe('tg:100')
   })
 
+  it('records the author of the replied-to message, not just its thread', async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+    // The agent's own post: `ts` is the real platform id, `sender` is the agent id.
+    await (daemon as any).store.appendTranscript({
+      channel: '-100',
+      thread: '555',
+      ts: '500',
+      sender: 'bot-a',
+      kind: 'text',
+      text: 'answer'
+    })
+
+    const m = tg(600, { topicId: '555', replyTo: '500' })
+    await (daemon as any).canonicalizeTelegramThread(m)
+
+    expect(m.thread).toBe('555')
+    expect(m.replyToAuthor).toBe('bot-a')
+  })
+
+  it("leaves a reply to a person as that person's id", async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+    await (daemon as any).store.appendTranscript({
+      channel: '-100',
+      thread: '555',
+      ts: '499',
+      sender: 'U1',
+      kind: 'text',
+      text: 'a question'
+    })
+
+    const m = tg(600, { topicId: '555', replyTo: '499' })
+    await (daemon as any).canonicalizeTelegramThread(m)
+
+    // A reply to a human must never read as an address to the agent.
+    expect(m.replyToAuthor).toBe('U1')
+  })
+
+  it('leaves replyToAuthor unset when the replied-to message is unknown', async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+
+    const m = tg(600, { topicId: '555', replyTo: '999' })
+    await (daemon as any).canonicalizeTelegramThread(m)
+
+    expect(m.thread).toBe('555')
+    expect(m.replyToAuthor).toBeUndefined()
+  })
+
   it('roots a basic-group reply on the replied-to message when the transcript has no record', async () => {
     const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
     await daemon.start()
@@ -750,7 +800,10 @@ describe('continue-the-topic hint delivery', () => {
     // resolves through it (LocalStore.telegramThreadForMessage).
     const rows = await (daemon as any).store.threadTranscript('-100', 'tg:100')
     expect(rows.at(-1)).toMatchObject({ text: 'answer', ts: 'out-9' })
-    expect(await (daemon as any).store.telegramThreadForMessage('-100', 'out-9')).toBe('tg:100')
+    expect(await (daemon as any).store.telegramThreadForMessage('-100', 'out-9')).toMatchObject({
+      thread: 'tg:100',
+      sender: 'bot-a'
+    })
     expect(p.turnState).toMatchObject({ lastBody: { id: 'out-9', text: 'answer\n\n↩️ hint' } })
     await daemon.stop()
   })

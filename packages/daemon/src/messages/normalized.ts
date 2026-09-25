@@ -42,6 +42,13 @@ export interface NormalizedMessage extends Omit<
    * only the timestamp before the separator.
    */
   transcriptTs?: string
+  /**
+   * Who authored the message this one replies to, as the transcript recorded it: an
+   * agent id when the replied-to message was one of ours, a platform user id when it
+   * was a person's. Undefined when nothing resolvable. Daemon-internal — never on the
+   * wire, and never read by a platform adapter.
+   */
+  replyToAuthor?: string
   /** The canonical webchat post id minted beside `transcriptTs` (same origin,
    *  merged-conversation-view.md §6) — persisted on the transcript row so
    *  cross-daemon copies share an explicit identity. */
