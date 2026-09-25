@@ -5,6 +5,7 @@ import {
   conversationPeers,
   hopTransition,
   isUsableSourceDepth,
+  participantAgents,
   routeRules,
   type ActivationMessageFacts,
   type ActivationRule
@@ -152,5 +153,78 @@ describe('conversationPeers (§2.3/§6 delivery selection)', () => {
       {}
     )
     expect(peers).toEqual(['p1'])
+  })
+})
+
+describe('affinityDenied (the explicit-address fence)', () => {
+  // The rule shape the CP actually compiles for this trigger: the unscoped mention
+  // default, carrying the fence. `match.kind` stays 'mention' — a rule with kind
+  // 'auto' would join every agent through `automaticAgents` regardless of the fence,
+  // which is what `any` means and is NOT what this trigger means.
+  const fenced = (agentId: string, over: Partial<ActivationRule> = {}) =>
+    rule({ agentId, match: { kind: 'mention' }, botUserId: `B-${agentId}`, affinityDenied: ['C1'], ...over })
+
+  it('denies an unaddressed message to the thread owner', () => {
+    // The regression this whole change exists for: today affinity delivers this.
+    const rules = [fenced('a1')]
+    expect(routeRules(msg({ thread: 't1' }), rules, () => 'a1')).toBeNull()
+  })
+
+  it('admits a reply to the owner', () => {
+    const rules = [fenced('a1')]
+    expect(routeRules(msg({ thread: 't1', replyToAuthor: 'a1' }), rules, () => 'a1')).toMatchObject({
+      agentId: 'a1',
+      via: 'thread'
+    })
+  })
+
+  it('routes a reply to a different agent to nobody', () => {
+    // A reply is an address to ONE agent; the owner must not inherit it.
+    const rules = [fenced('a1')]
+    expect(routeRules(msg({ thread: 't1', replyToAuthor: 'a2' }), rules, () => 'a1')).toBeNull()
+  })
+
+  it('still routes an @-mention — the fence is not Off', () => {
+    // Rung 1 never consults continuityAdmits, which is exactly why this trigger is
+    // not `off`.
+    const rules = [fenced('a1', { botUserId: 'U1' })]
+    expect(routeRules(msg({ mentionedBots: ['U1'] }), rules, () => null)).toMatchObject({
+      agentId: 'a1',
+      via: 'mention'
+    })
+  })
+
+  it('leaves an unfenced channel alone', () => {
+    const rules = [rule({ agentId: 'a1' })]
+    expect(routeRules(msg({ thread: 't1' }), rules, () => 'a1')).toMatchObject({ agentId: 'a1', via: 'thread' })
+  })
+
+  it('denies participants without a reply, and admits the reply author', () => {
+    const rules = [fenced('a1'), fenced('a2')]
+    expect(participantAgents(msg({ thread: 't1' }), rules, ['a1', 'a2'])).toEqual([])
+    expect(participantAgents(msg({ thread: 't1', replyToAuthor: 'a1' }), rules, ['a1', 'a2'])).toEqual(['a1'])
+  })
+
+  it('the multi-agent case routes through participants alone', () => {
+    // `threadOwner` returns null when 2+ agents share a thread, so rung 2 delivers
+    // nothing and `participantAgents` is the ONLY path — a single-agent test misses it.
+    const rules = [fenced('a1'), fenced('a2')]
+    const peers = conversationPeers(msg({ thread: 't1', replyToAuthor: 'a1' }), rules, ['a1', 'a2'])
+    expect(peers.peers).toEqual(['a1'])
+    expect(routeRules(msg({ thread: 't1', replyToAuthor: 'a1' }), rules, () => null)).toBeNull()
+  })
+
+  it('does not revive a dormant owner', () => {
+    // `threadOwner` falls back to `closedSessionAgents`, so the fence has to deny what
+    // it returns rather than check liveness itself.
+    const rules = [fenced('a1')]
+    expect(routeRules(msg({ thread: 't1' }), rules, () => 'a1')).toBeNull()
+  })
+
+  it('leaves the verified-agent delivery gate unchanged', () => {
+    // conversationAdmitsAgent reproduces OFF, not this trigger: an agent delivery is
+    // explicit by construction and must keep reaching a fenced conversation.
+    const rules = [fenced('a1')]
+    expect(conversationAdmitsAgent(rules, 'a1', 'C1')).toBe(true)
   })
 })

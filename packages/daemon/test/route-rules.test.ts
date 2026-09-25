@@ -374,3 +374,40 @@ describe('rulesFromAgent / resolveAgentIntegration (Telegram)', () => {
     expect(resolveAgentIntegration(undefined, {})).toBeNull()
   })
 })
+
+describe('affinityDenied reaches the ladder from agent.json', () => {
+  it('denies an unaddressed message and admits a reply, through rulesFromAgent', () => {
+    // A mention-only rule set (no `auto`), because an `auto` rule means `any` and would
+    // join the agent regardless of the fence — a different trigger, not this one.
+    const a = tgAgent({
+      integrations: [
+        {
+          id: 'i-tg',
+          platform: 'telegram',
+          core: {
+            mode: 'direct',
+            bindRules: [{ match: { kind: 'mention' } }],
+            mutedChannels: [],
+            affinityDenied: ['-100'],
+            gated: false
+          },
+          config: { botToken: '123:abc', botUsername: 'mybot' }
+        }
+      ]
+    })
+    const rules = rulesFromAgent(a, { 'i-tg': 'mybot' })
+    const owner = () => 'a1'
+    const base = { platform: 'telegram', channel: '-100', thread: '555' }
+
+    // Today this routes to a1 through thread affinity; with the fence it must not.
+    expect(routeRules(msg({ ...base, text: 'anything' }), rules, owner)).toBeNull()
+    expect(routeRules(msg({ ...base, text: 'a reply', replyToAuthor: 'a1' }), rules, owner)).toMatchObject({
+      agentId: 'a1',
+      via: 'thread'
+    })
+    expect(routeRules(msg({ ...base, text: '<@mybot> hi', mentionedBots: ['mybot'] }), rules, owner)).toMatchObject({
+      agentId: 'a1',
+      via: 'mention'
+    })
+  })
+})

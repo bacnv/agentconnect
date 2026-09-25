@@ -56,6 +56,9 @@ export interface ActivationMessageFacts {
   isDm: boolean
   mentionedBots: string[]
   sender: { isBot: boolean }
+  /** The transcript author of the message this one replies to, where the platform can
+   *  resolve it — an agent id for one of ours, a platform user id for a person's. */
+  replyToAuthor?: string
 }
 
 // ─── routeRules: arbitration ladder over the merged (local ∪ CP) rule set ───
@@ -81,6 +84,14 @@ function scopeMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
   if (!channelInScope(r.scope.channel, msg)) return false
   if (r.scope.thread !== undefined && r.scope.thread !== msg.thread) return false
   return true
+}
+
+/** Is this rule reachable here by continuity alone — an open session, not an address?
+ *  Separate from `scopeMatches`, which is the DELIVERY fence: putting this there would
+ *  kill @-mentions too, which is what `off` does and this must not. */
+function continuityAdmits(r: ActivationRule, msg: ActivationMessageFacts): boolean {
+  if (!r.affinityDenied?.some((denied) => channelInScope(denied, msg))) return true
+  return msg.replyToAuthor !== undefined && msg.replyToAuthor === r.agentId
 }
 
 function kindMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
@@ -127,7 +138,7 @@ export function participantAgents(
   exclude?: string
 ): string[] {
   if (participants.length === 0) return []
-  const servable = new Set(rules.filter((r) => scopeMatches(r, msg)).map((r) => r.agentId))
+  const servable = new Set(rules.filter((r) => scopeMatches(r, msg) && continuityAdmits(r, msg)).map((r) => r.agentId))
   return participants.filter((id) => id !== exclude && servable.has(id))
 }
 
@@ -196,7 +207,7 @@ export function routeRules(
       // PARTICIPATION, not channel reachability, is the disambiguator (§8.5): route an
       // un-mentioned follow-up to that owner if it's reachable here, regardless of how
       // many other bots are also bound to the channel.
-      const ownerRule = scopeCandidates.find((x) => x.agentId === owner)
+      const ownerRule = scopeCandidates.find((x) => x.agentId === owner && continuityAdmits(x, msg))
       if (ownerRule) return pickRule(ownerRule, 'thread') // continuity, kind-agnostic
     }
   }
