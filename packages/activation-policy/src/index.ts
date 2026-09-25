@@ -86,12 +86,23 @@ function scopeMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
   return true
 }
 
+/** Does an explicit address reach an agent whose `affinityDenied` fences this conversation?
+ *  Exported for the resolvers that pick a target by COORDINATE alone (control commands),
+ *  which hold the fence but no rule to run the ladder over. */
+export function affinityAdmits(
+  denied: readonly string[] | undefined,
+  agentId: string,
+  msg: ActivationMessageFacts
+): boolean {
+  if (!denied?.some((fenced) => channelInScope(fenced, msg))) return true
+  return msg.replyToAuthor !== undefined && msg.replyToAuthor === agentId
+}
+
 /** Is this rule reachable here by continuity alone — an open session, not an address?
  *  Separate from `scopeMatches`, which is the DELIVERY fence: putting this there would
  *  kill @-mentions too, which is what `off` does and this must not. */
 function continuityAdmits(r: ActivationRule, msg: ActivationMessageFacts): boolean {
-  if (!r.affinityDenied?.some((denied) => channelInScope(denied, msg))) return true
-  return msg.replyToAuthor !== undefined && msg.replyToAuthor === r.agentId
+  return affinityAdmits(r.affinityDenied, r.agentId, msg)
 }
 
 function kindMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {

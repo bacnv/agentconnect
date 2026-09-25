@@ -20,7 +20,7 @@ import type { AgentCommand } from './commands.js'
 import type { Logger } from '../log.js'
 import type { LoadedAgent } from '../agents/load-agents.js'
 import type { NormalizedMessage } from '../messages/normalized.js'
-import { routeRules, type RouteVia } from '../router/routing-table.js'
+import { affinityAdmits, routeRules, type RouteVia } from '../router/routing-table.js'
 import { conversationAdmitted, integrationRouting, type RoutingRule } from '../router/routing-rule.js'
 import { sessionKey, type LocalStore, type SessionRecord } from '../store/local-store.js'
 import {
@@ -388,6 +388,11 @@ export class CommandHandlers {
           !this.commandSenderAllowed(agentId, integration.id, msg)
         )
           continue
+        // A coordinate-only fallback must not overrule the ladder's own denial: in a
+        // conversation fenced to explicit addresses, "the channel's latest session" is
+        // exactly the continuity the fence exists to refuse. Not in commandSenderAllowed,
+        // which also gates ladder-resolved targets — those ARE addresses.
+        if (!affinityAdmits(integrationRouting(integration).affinityDenied, agentId, msg)) continue
         const latest = await this.host.store().latestSessionForTransport(agentId, msg.channel, transportScope, thread)
         if (latest) candidates.push({ agentId, integrationId: integration.id, updatedAt: latest.updatedAt })
       }
