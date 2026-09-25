@@ -85,6 +85,9 @@ describe('the linear transcript and card semantics', () => {
     // Every Linear event is addressed by construction (§6.1), so an "any message" arm
     // would match nothing an operator could ever observe.
     expect(channelListSemantics('linear').triggers).toEqual(['off', 'mention'])
+    // And never the reply-aware arm: it needs a per-message author lookup only a chat
+    // transcript can answer.
+    expect(channelListSemantics('linear').triggers).not.toContain('mention_topic')
   })
 
   it('warns before a team’s default leaves a private agent', () => {
@@ -131,12 +134,16 @@ describe('the linear transcript and card semantics', () => {
 
   it('is the only module whose roster is derived, or whose triggers are narrowed', () => {
     // Both are capabilities core reads; neither may become "the platform is Linear".
+    // A module may WIDEN its own trigger vocabulary (Telegram does — the reply arm is a
+    // capability only it has), but only Linear may NARROW it, because a narrowed list
+    // is a claim about what the platform can never deliver.
+    const AGNOSTIC = ['off', 'mention', 'any']
     for (const m of platformRegistry.all()) {
       if (m.platformId === 'linear') continue
       expect(m.channelList?.roster, m.platformId).toBeUndefined()
-      expect(m.channelList?.triggers, m.platformId).toBeUndefined()
       expect(m.channelList?.ownerChangeWarning, m.platformId).toBeUndefined()
       expect(m.channelList?.gatedNote, m.platformId).toBeUndefined()
+      for (const t of AGNOSTIC) expect(m.channelList?.triggers ?? AGNOSTIC, m.platformId).toContain(t)
     }
   })
 

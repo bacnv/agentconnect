@@ -2144,7 +2144,7 @@ export interface IntegrationChannelRow {
   url?: string
   /** 'im' = a DM conversation row, 'mpim' = a Slack group DM; absent = channel. */
   kind?: 'channel' | 'im' | 'mpim'
-  trigger: 'off' | 'mention' | 'any'
+  trigger: 'off' | 'mention' | 'mention_topic' | 'any'
   /** Effective per-conversation owner for a shared bot. */
   agentId?: string | null
 }

@@ -874,8 +874,9 @@ export interface SlackConfigInput {
 }
 
 // How the bot activates in one conversation: not at all ('off' — conversation
-// gating for restricted agents), only when @-mentioned, or on any message.
-export type ChannelTrigger = 'off' | 'mention' | 'any'
+// gating for restricted agents), only when @-mentioned, on any message, or only on
+// an explicit address — an @-mention or a reply to the agent's own message.
+export type ChannelTrigger = 'off' | 'mention' | 'mention_topic' | 'any'
 
 // One conversation the integration's bot is in (daemon-reported) + its trigger
 // choice. kind 'im' rows are DM conversations and 'mpim' rows are Slack group DMs;
