@@ -98,6 +98,24 @@ describe('private runtime HOME', () => {
     expect(existsSync(join(home, '.claude', 'sessions'))).toBe(false)
   })
 
+  it('carries the operator availableModels list into a private home, and nothing else from settings', () => {
+    const { hostHome, scopeDir } = fixture()
+    writeFileSync(
+      join(hostHome, '.claude', 'settings.json'),
+      JSON.stringify({
+        availableModels: ['haiku', 'deepseek-v4.1-flash', 'glm-5.3-flash'],
+        env: { CLAUDE_SECURESTORAGE_CONFIG_DIR: '/host/private/auth' },
+        hooks: { Stop: [{ hooks: [{ type: 'command', command: '/host/private/hook.sh' }] }] },
+        statusLine: { command: '/host/private/statusline.sh' }
+      })
+    )
+
+    const home = prepareRuntimeHome('claude-acp', scopeDir, { HOME: hostHome })
+    expect(JSON.parse(readFileSync(join(home, '.claude', 'settings.json'), 'utf8'))).toEqual({
+      availableModels: ['haiku', 'deepseek-v4.1-flash', 'glm-5.3-flash']
+    })
+  })
+
   it('leaves Claude cold when the host global config has no model rollout cache', () => {
     const { hostHome, scopeDir } = fixture()
     writeFileSync(join(hostHome, '.claude.json'), JSON.stringify({ mcpServers: { private: {} } }))
