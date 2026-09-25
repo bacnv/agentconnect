@@ -147,6 +147,10 @@ export const IntegrationCoreEnvelope = z.object({
   mode: z.enum(['direct', 'shared']).default('direct'),
   bindRules: z.array(IntegrationBindRule).default([]),
   mutedChannels: z.array(z.string()).default([]),
+  // Conversations where an implicit continuation (an open session) is denied: only an
+  // explicit address — an @-mention or a reply to one of the agent's own messages
+  // reaches it. Orthogonal to `mutedChannels`, which silences the conversation outright.
+  affinityDenied: z.array(z.string()).default([]),
   gated: z.boolean().default(false)
 })
 export type IntegrationCoreEnvelope = z.infer<typeof IntegrationCoreEnvelope>

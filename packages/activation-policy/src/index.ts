@@ -35,6 +35,10 @@ export interface ActivationRule {
    *  purely additive rule set cannot express. Carried per rule so the ladder
    *  stays pure and every rung is fenced by the one scope filter. */
   mutedChannels?: string[]
+  /** Conversations that admit only an explicit address (an @-mention or a reply to one
+   *  of this agent's own messages). The implicit continuity rungs are denied here, so an
+   *  open session alone never delivers — unlike `mutedChannels`, which silences outright. */
+  affinityDenied?: string[]
   source: 'config' | 'cp'
   epoch?: number // cp layer only
   /** Platform this rule belongs to. Undefined = matches any platform
