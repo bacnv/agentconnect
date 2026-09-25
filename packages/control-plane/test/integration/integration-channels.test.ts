@@ -1103,6 +1103,31 @@ describe('integration/channels EVT → integration_channel convergence', () => {
     )
   })
 
+  it('persists a mention_topic trigger through the Postgres enum', async () => {
+    // The value is enforced by the database enum type, so this only passes once the
+    // migration has run — a unit test cannot prove it.
+    await seedDaemon(prisma, DAEMON)
+    const spy = new SpyControl()
+    running = buildHttpApp(prisma, undefined, undefined, spy as unknown as ControlSender)
+    const id = await install(running)
+    await report(DAEMON, id, [
+      { id: 'C1', name: 'deploys' },
+      { id: 'C2', name: 'quiet' }
+    ])
+
+    const res = await running.app.inject({
+      method: 'PATCH',
+      url: `${ORG}/integrations/${id}/channels/C2`,
+      payload: { trigger: 'mention_topic' }
+    })
+    expect(res.statusCode).toBe(200)
+
+    const row = (await new PgIntegrationChannelRepo(prisma).listForIntegration(IntegrationId(id))).find(
+      (c) => c.channelId === 'C2'
+    )
+    expect(row).toMatchObject({ trigger: 'mention_topic' })
+  })
+
   it('flipping agent visibility re-pushes the integration spec with the derived gate (§14.4)', async () => {
     await seedDaemon(prisma, DAEMON)
     const spy = new SpyControl()

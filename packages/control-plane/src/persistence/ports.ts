@@ -5033,7 +5033,7 @@ export interface ChannelPlacementRecord {
 // and ids are control metadata, never message content.
 // ───────────────────────────────────────────────────────────────────────────
 
-export type ChannelTrigger = 'off' | 'mention' | 'any'
+export type ChannelTrigger = 'off' | 'mention' | 'mention_topic' | 'any'
 
 /** Member channel vs direct conversation (resource-visibility.md §14.3). `mpim` is a
  *  Slack group DM: observed like an `im`, mention-gated like a channel. */
