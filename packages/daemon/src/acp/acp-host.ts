@@ -359,11 +359,20 @@ export function turnFailureCode(err: unknown): TurnFailureCode {
  * Resolve how to apply `desired` to the select config option tagged `category`.
  * `{skip}` (with the reason) means nothing should be sent: the runtime
  * advertises no such selector, doesn't offer the value, or already has it set.
+ *
+ * `reassert` re-sends a value the runtime reports as already current. It exists for
+ * the model select on a RESUMED session: that `currentValue` is derived from the
+ * session transcript, which holds whatever the provider echoed back — a gateway combo
+ * echoes its UPSTREAM name — so it cannot prove what the session is running. The ACP
+ * wrapper accepts a currentValue round-trip by design ("re-asserting an already-current
+ * value is harmless and can repair SDK drift"), and a wrong skip here is invisible:
+ * the session would then run the bare echoed name into a model_not_found.
  */
 export function planConfigSelection(
   configOptions: SessionConfigOption[] | null | undefined,
   category: string,
-  desired: string
+  desired: string,
+  reassert = false
 ): ConfigSelectionPlan {
   const opt = configOptions?.find((o) => o.category === category && o.type === 'select')
   if (!opt || opt.type !== 'select') return { skip: `runtime advertises no ${category} selector` }
@@ -371,7 +380,9 @@ export function planConfigSelection(
   if (!values.includes(desired)) {
     return { skip: `value "${desired}" not offered (available: ${values.join(', ')})` }
   }
-  if (opt.currentValue === desired) return { skip: `already "${desired}"` }
+  if (opt.currentValue === desired && !(reassert && category === 'model')) {
+    return { skip: `already "${desired}"` }
+  }
   return { configId: opt.id, value: desired }
 }
 
@@ -991,7 +1002,8 @@ export class AcpHost {
    */
   private async applySessionConfig(
     sessionId: string,
-    initial: SessionConfigOption[] | null | undefined
+    initial: SessionConfigOption[] | null | undefined,
+    reassertModel = false
   ): Promise<SessionConfigOption[] | null | undefined> {
     let options = initial
     // ultracode rides `_meta` on session/new|load (see claudeSessionMeta), not the
@@ -1010,7 +1022,7 @@ export class AcpHost {
     ]
     for (const [category, desired] of prefs) {
       if (!desired) continue
-      const plan = planConfigSelection(options, category, desired)
+      const plan = planConfigSelection(options, category, desired, reassertModel)
       if ('skip' in plan) {
         this.opts.log?.debug(`acp: session config ${category}="${desired}" not applied — ${plan.skip}`)
         continue
@@ -1233,8 +1245,9 @@ export class AcpHost {
       })
       this.live.set(sessionId, cwd)
       // Re-apply config prefs: ACP sessions restore their own last model/effort,
-      // which may predate a CP-side agent edit.
-      const configOptions = await this.applySessionConfig(sessionId, res.configOptions)
+      // which may predate a CP-side agent edit. The model is re-asserted even when
+      // the runtime reports it as current — that report is the transcript's echo.
+      const configOptions = await this.applySessionConfig(sessionId, res.configOptions, true)
       // Refresh the selectors from the reconciled options — a resumed session must
       // report its own model/effort/fast, not stale ones from the last session/new (or
       // null if this process never created one). Mirrors newSession().

@@ -198,6 +198,7 @@ rl.on('line', async (line) => {
     if (!acceptsMcpServers(id, params)) return
     if (process.env.AC_LOAD_PERMISSION_MODE)
       sessionPermissionModes.set(params.sessionId, process.env.AC_LOAD_PERMISSION_MODE)
+    if (process.env.AC_LOAD_MODEL) sessionModels.set(params.sessionId, process.env.AC_LOAD_MODEL)
     if (process.env.AC_LOAD_UPDATES) {
       send({
         jsonrpc: '2.0',

@@ -250,6 +250,34 @@ describe('AcpHost session/load update filtering', () => {
     await host.stop()
   })
 
+  it('re-asserts the model of a resumed session whose reported current model is only an echo', async () => {
+    const setModels: string[] = []
+    const host = new AcpHost(
+      { command: process.execPath, args: [fakeAgent], env: [] },
+      {
+        onUpdate: () => {},
+        env: { AC_MODELS: 'default,deepseek-v4-flash', AC_LOAD_UPDATES: '1', AC_LOAD_MODEL: 'deepseek-v4-flash' },
+        configPrefs: { model: 'deepseek-v4-flash' },
+        log: {
+          trace: () => {},
+          debug: () => {},
+          info: (m: string) => {
+            if (m.includes('set to "deepseek-v4-flash"')) setModels.push(m)
+          },
+          warn: () => {},
+          error: () => {}
+        }
+      }
+    )
+    await host.start()
+    await host.loadSession('persisted-session-model', '/tmp')
+    // The runtime reports the model as already current, but that value is the
+    // transcript echo — the SDK underneath may be on the upstream name. The daemon
+    // must send the set rather than trust the report.
+    expect(setModels).toHaveLength(1)
+    await host.stop()
+  })
+
   it('allows only latest-wins metadata through during load', () => {
     expect(shouldForwardUpdateDuringLoad({ sessionUpdate: 'session_info_update', title: 'Restored' })).toBe(true)
     expect(shouldForwardUpdateDuringLoad({ sessionUpdate: 'usage_update', used: 1, size: 10 } as any)).toBe(true)
