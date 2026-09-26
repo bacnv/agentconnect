@@ -36,6 +36,7 @@ const ALL_CAPABILITIES = new Set(['recall', 'create', 'get', 'update', 'delete']
 const advertised: ToolDescriptor[] = [
   ...toolsForIntegrations([slackInt, telegramInt], {
     organizationKnowledge: true,
+    cronAuthor: true,
     currentPlatform: 'slack'
   }),
   ...externalMemoryTools(ALL_CAPABILITIES),
@@ -83,6 +84,17 @@ describe('advertised tool schemas agree with their zod validators', () => {
     const root = byName.get('sendMessage')!.inputSchema as ObjectSchemaView
     const branch = root.oneOf!.find((candidate) => candidate.required?.includes(target))!
     expect(validatorFields(schema)).toEqual(fields(branch))
+  })
+})
+
+describe('the scheduleCron feature gate', () => {
+  it('advertises scheduleCron only when the CP serves it', () => {
+    const on = toolsForIntegrations([slackInt, telegramInt], { cronAuthor: true }).map((t) => t.name)
+    const off = toolsForIntegrations([slackInt, telegramInt]).map((t) => t.name)
+    // `cron/author` is frame-fatal to a CP that does not know it, so the tool must not exist
+    // there — an agent that called it would report a broken feature instead of an absent one.
+    expect(on).toContain('scheduleCron')
+    expect(off).not.toContain('scheduleCron')
   })
 })
 

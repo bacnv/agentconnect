@@ -87,6 +87,7 @@ import {
   type PlatformActionDeps
 } from './ops/platform-actions.js'
 import { shareFile, type ShareFileDeps } from './ops/share-file.js'
+import { scheduleCron, SCHEDULE_CRON_ARGS, type CronAuthorDeps } from './ops/cron.js'
 import {
   cancelOrchestration,
   getOrchestration,
@@ -181,6 +182,7 @@ export interface OpsDeps
     CodeHostEffectDeps,
     MemoryOpsDeps,
     ShareFileDeps,
+    CronAuthorDeps,
     PlatformReadDeps,
     PlatformActionDeps {
   /** Rejected tool arguments are logged here at debug, key names only — the sole trace of them (#1921). */
@@ -224,6 +226,7 @@ export interface OpsDeps
  */
 const HANDLERS: Map<string, ToolHandler<OpsDeps>> = new Map<string, ToolHandler<OpsDeps>>([
   ['shareFile', shareFile],
+  ['scheduleCron', scheduleCron],
   ['viewSessionStatus', viewSessionStatus],
   ['describeMemoryEntries', describeMemoryEntries],
   ['listMemoryEntries', listMemoryEntries],
@@ -341,6 +344,7 @@ export const TOOL_ARG_SCHEMAS: Map<string, ZodType> = new Map<string, ZodType>([
   ['updateListItem', UPDATE_LIST_ITEM_ARGS],
   ['createConversation', CREATE_CONVERSATION_ARGS],
   ['scheduleMessage', SCHEDULE_MESSAGE_ARGS],
+  ['scheduleCron', SCHEDULE_CRON_ARGS],
   ['searchPublicMessages', SEARCH_PUBLIC_MESSAGES_ARGS],
   ['createCanvas', CREATE_CANVAS_ARGS],
   ['readCanvas', READ_CANVAS_ARGS],

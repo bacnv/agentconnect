@@ -23,9 +23,10 @@ export const SCHEDULE_CRON_ARGS = z.strictObject(
   unexpectedKeys
 )
 
-/** The one seam this op has: it talks to the control plane, never to a platform gateway. */
+/** The one seam this op has: it talks to the control plane, never to a platform gateway.
+ *  Absent where there is no connected CP — refused at call time rather than at dispatch. */
 export interface CronAuthorDeps {
-  authorCron: (req: CronAuthor) => Promise<CronAuthorOk>
+  authorCron?: (req: CronAuthor) => Promise<CronAuthorOk>
 }
 
 export async function scheduleCron(
@@ -39,6 +40,7 @@ export async function scheduleCron(
   if (!ctx.integrationId) {
     throw new Error('scheduleCron: this session has no platform integration, so there is no conversation to fire into.')
   }
+  if (!deps.authorCron) throw new Error('scheduleCron is not available in this environment.')
   const ok = await deps.authorCron({
     requestId: randomUUID(),
     agentId: ctx.agentId,

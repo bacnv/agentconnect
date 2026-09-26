@@ -28,6 +28,7 @@ import {
   AGENT_CONFIG_REVISION_FEATURE,
   APPROVAL_DM_ROUTE_V1_FEATURE,
   DAEMON_BOOTSTRAP_UPGRADE_FEATURE,
+  AGENT_CRON_AUTHOR_FEATURE,
   GITCRED_GITHUB_V2_FEATURE,
   GITEA_V1_FEATURE,
   GITLAB_EFFECT_V1_FEATURE,
@@ -3009,6 +3010,13 @@ export class Daemon {
         if (!client) throw Object.assign(new Error('control plane is not connected'), { code: 'INTERNAL' })
         return client.orgSkills(req)
       },
+      // scheduleCron (agent-authored-cron-design.md §6): the payload is built wholly from the
+      // trusted session context inside the op — the model supplies only schedule/timezone/prompt/name.
+      authorCron: async (req) => {
+        const client = this.cpClient
+        if (!client) throw new Error('control plane is not connected')
+        return await client.authorCron(req)
+      },
       // Agent→agent wake (§2.2). Same-daemon delivery only in P1; the daemon owns the
       // trusted caller identity + policy check + dispatch (a target elsewhere gets
       // reason:'not_local' — cross-daemon relay is P2).
@@ -3332,6 +3340,7 @@ export class Daemon {
         const servers: McpServer[] = []
         let tools = toolsForIntegrations(agent.integrations, {
           organizationKnowledge: this.cpClient?.supportsServerFeature?.(ORGANIZATION_KNOWLEDGE_FEATURE) === true,
+          cronAuthor: this.cpClient?.supportsServerFeature?.(AGENT_CRON_AUTHOR_FEATURE) === true,
           currentPlatform: platform
         })
         // Static descriptor, dynamic authority: a per-thread ACP session can

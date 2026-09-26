@@ -1272,6 +1272,51 @@ export const CODE_HOST_EFFECT_TOOLS: ToolDescriptor[] = [
   }
 ]
 
+/** `scheduleCron` — an AgentConnect cron that wakes THIS agent on a schedule, firing with
+ *  nobody watching and posting into the conversation it was authored in. Not `scheduleMessage`:
+ *  that hands the platform a fixed message to post; this wakes the agent to decide then. */
+function buildScheduleCronTool(): ToolDescriptor {
+  return {
+    name: 'scheduleCron',
+    description:
+      'Schedule YOURSELF to wake on a recurring schedule and act in THIS conversation. The schedule lives in ' +
+      'AgentConnect rather than in your session, so it keeps firing after this session ends and while nobody is ' +
+      'talking to you — which is what makes it different from a scheduler your own runtime offers, and from ' +
+      '`scheduleMessage`, which only posts a fixed message and cannot decide anything when it fires. `schedule` ' +
+      'is a five-field cron expression (`30 6 * * *` = 06:30 every day) and `timezone` is the IANA zone it is ' +
+      'read in — REQUIRED, and never defaulted: ask the person which zone they mean instead of assuming UTC. ' +
+      '`prompt` is what you are told when it fires; write it as an instruction to your future self, including ' +
+      'anything you would otherwise have to look up again. The result posts into this conversation only — you ' +
+      'cannot name a channel, a thread, or another bot. Returns the cron id and its next fire time.',
+    inputSchema: obj(
+      {
+        schedule: {
+          type: 'string',
+          minLength: 1,
+          description: 'Croner five-field expression, e.g. `30 6 * * *`.'
+        },
+        timezone: {
+          type: 'string',
+          minLength: 1,
+          description: 'IANA zone the schedule is read in, e.g. `Asia/Ho_Chi_Minh`. Required — never assume UTC.'
+        },
+        prompt: {
+          type: 'string',
+          minLength: 1,
+          description: 'What you are told when it fires — an instruction to your future self.'
+        },
+        name: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 120,
+          description: "Optional short label for the operator's cron list."
+        }
+      },
+      ['schedule', 'timezone', 'prompt']
+    )
+  }
+}
+
 export const ALL_TOOL_NAMES = [
   ...new Set(
     [
@@ -1279,6 +1324,7 @@ export const ALL_TOOL_NAMES = [
       // are stable and belong in the permission auto-allow set.
       buildSendMessageTool([]),
       buildShareFileTool(),
+      buildScheduleCronTool(),
       // Built once per registered platform AS the session platform so every port gate opens:
       // the auto-allow set is about names, and a name some platform can inject must be listed
       // even for an agent that will never see it.
@@ -1316,7 +1362,7 @@ export const ALL_TOOL_NAMES = [
  */
 export function toolsForIntegrations(
   integrations: Integration[],
-  options: { organizationKnowledge?: boolean; currentPlatform?: string } = {}
+  options: { organizationKnowledge?: boolean; currentPlatform?: string; cronAuthor?: boolean } = {}
 ): ToolDescriptor[] {
   const tools: ToolDescriptor[] = []
   const seen = new Set<string>()
@@ -1330,6 +1376,9 @@ export function toolsForIntegrations(
   add(MEMORY_TOOLS)
   if (options.organizationKnowledge) add(KNOWLEDGE_TOOLS)
   add(COLLABORATION_TOOLS)
+  // The CP answered on register that it serves `cron/author`; without that, the frame is
+  // frame-fatal to it, so the tool must not be offered at all (see AGENT_CRON_AUTHOR_FEATURE).
+  if (options.cronAuthor) add([buildScheduleCronTool()])
   // The unified `sendMessage` tool is ALWAYS present (session-concept §3): even a
   // memory-only agent with no platform integration can wake a peer (`toAgent`) or reply to
   // its origin (`sessionId`). The `platform` enum is narrowed to the agent's own platforms
