@@ -86,3 +86,35 @@ export const CronRunNow = z.object({
   cronId: z.string().uuid()
 })
 export type CronRunNow = z.infer<typeof CronRunNow>
+
+/**
+ * `cron/author` (D→C REQ → `cron/author/ok`) — an agent schedules ITSELF, through the
+ * conversation it is answering (docs/superpowers/specs/2026-09-26-agent-authored-cron-design.md).
+ * Deliberately not named `cron/upsert`: that frame is C→D, and one name for two directions is
+ * the ambiguity `FRAME_SCHEMAS` exists to prevent.
+ *
+ * `target` is REQUIRED and is filled by the daemon from the trusted session context, never
+ * from tool input. `timezone` is required and never defaulted: an omission would put a
+ * schedule on a clock nobody chose (see `http/routes/crons.ts`).
+ */
+export const CronAuthor = z.object({
+  // Idempotency: the CP derives the cron id from (orgId, agentId, requestId), so a REQ the
+  // correlator re-sent after a dropped reply answers the SAME cron instead of minting a second.
+  requestId: z.string().uuid(),
+  agentId: z.string().uuid(), // the authoring agent — routes the def to its daemon and fences the write
+  name: z.string().min(1).max(120).optional(), // console label only; never on the fire path
+  schedule: z.string().min(1), // croner expression interpreted in `timezone`
+  timezone: z.string().min(1), // resolved IANA zone — a fixed offset is refused by the CP
+  trigger: z.string().min(1), // the synthetic prompt the fire injects
+  target: CronTarget // always present: an authored cron posts into the conversation it was authored in
+})
+export type CronAuthor = z.infer<typeof CronAuthor>
+
+/** `nextRun` is the value the CP resolved while validating — the agent can tell the person when it will fire. */
+export const CronAuthorOk = z.object({
+  cronId: z.string().uuid(),
+  schedule: z.string(),
+  timezone: z.string(),
+  nextRun: z.string().datetime()
+})
+export type CronAuthorOk = z.infer<typeof CronAuthorOk>

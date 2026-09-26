@@ -404,3 +404,8 @@ export const GITLAB_EFFECT_V1_FEATURE = 'gitlab-effect-v1'
 
 /** CP serves the `memory/store` family (memory-evolution.md §3.2.1); a daemon refuses a `control-plane` home without it. */
 export const AGENT_MEMORY_STORE_V1_FEATURE = 'agent-memory-store-v1'
+
+/** CP decodes a daemon-authored `cron/author` REQ and pushes the resulting def back down as
+ *  `cron/upsert`. A daemon must not send that REQ before seeing this: a new request type is
+ *  frame-fatal to an older CP. */
+export const AGENT_CRON_AUTHOR_FEATURE = 'agent-cron-author-v1'
