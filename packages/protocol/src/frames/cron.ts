@@ -26,7 +26,12 @@ export const CronTarget = z.object({
   // The agent integration whose connection posts the anchor — targets come from
   // the owning agent's integrations, so the daemon posts through the right bot
   // when the agent has several. Absent (legacy defs) ⇒ first integration.
-  integrationId: z.string().uuid().optional()
+  integrationId: z.string().uuid().optional(),
+  // The forum/topic container the conversation lived in, where the platform has one: a fire must
+  // land inside it, not at the chat root (Telegram General). Slack's thread_ts is a
+  // sub-conversation and is never sent — a wake opens a new thread rather than revive the one that
+  // asked. Optional and unstrict, so an older CP strips it and degrades to the prior behaviour.
+  thread: z.string().optional()
 })
 export type CronTarget = z.infer<typeof CronTarget>
 

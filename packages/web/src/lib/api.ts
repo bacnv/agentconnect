@@ -689,6 +689,7 @@ export interface CronDto {
   timezone: string
   targetPlatform: string // §6.8 open id — derived from the anchor integration
   targetChannel: string | null
+  targetThread: string | null // the forum/topic container the fire posts inside; null elsewhere
   targetIntegrationId: string | null // null ⇒ legacy row / integration uninstalled
   trigger: string
   enabled: boolean

@@ -952,11 +952,58 @@ describe('Daemon session lifecycle (#118)', () => {
       'cron "cron-tg"'
     )
 
-    expect(postMessage).toHaveBeenCalledWith('-100123', '⏰ scheduled')
+    expect(postMessage).toHaveBeenCalledWith('-100123', '⏰ scheduled', undefined)
     // threadKeyForPost: a Telegram reply chain resolves to `tg:<root>` — the anchor
     // session must mint the SAME key or follow-up replies open a different session.
     const key = sessionKey('telegram', '-100123', 'tg:777', 'bot-a', TRANSPORT_SCOPE)
     expect(await (daemon as any).store.getSession(key)).toBeTruthy()
+    await daemon.stop()
+  })
+
+  it('§6.8: a fire into a forum topic posts INSIDE it and keys the session on the topic', async () => {
+    const host = quietHost()
+    const daemon = new Daemon({
+      slackAppFactory: fakeSlackAppFactory(),
+      root: scaffold(),
+      hostFactory: () => host as any
+    })
+    await daemon.start()
+    makeRoutable(daemon)
+    const postMessage = vi.fn(async () => '777')
+    ;(daemon as any).connByIntegration.delete('int-a')
+    ;(daemon as any).tgConnByIntegration.set('int-a', {
+      postMessage,
+      postChrome: vi.fn(async () => {}),
+      updateMessage: vi.fn(async () => {})
+    })
+
+    await (daemon as any).fireTrigger(
+      'bot-a',
+      {
+        ...dm('ignored', 'scheduled', 'cron:cron-topic:trace-1'),
+        msgId: 'cron:cron-topic:trace-1',
+        traceId: 'trace-1',
+        source: 'cron',
+        trigger: 'cron',
+        platform: 'telegram',
+        channel: '-100123',
+        isDm: false
+      },
+      // A forum topic: without the container the post lands under General, where the
+      // conversation that asked cannot see it.
+      { channel: '-100123', integrationId: 'int-a', thread: '6' },
+      '⏰ scheduled',
+      'cron "cron-topic"'
+    )
+
+    // `6` is numeric, so TelegramConnection sets `message_thread_id` — the topic.
+    expect(postMessage).toHaveBeenCalledWith('-100123', '⏰ scheduled', '6')
+    // The session keys on the TOPIC, not on the anchor's ts: every inbound message in a
+    // forum canonicalizes to the topic id, so any other key would be unreachable there.
+    const key = sessionKey('telegram', '-100123', '6', 'bot-a', TRANSPORT_SCOPE)
+    expect(await (daemon as any).store.getSession(key)).toBeTruthy()
+    const stray = sessionKey('telegram', '-100123', 'tg:777', 'bot-a', TRANSPORT_SCOPE)
+    expect(await (daemon as any).store.getSession(stray)).toBeFalsy()
     await daemon.stop()
   })
 

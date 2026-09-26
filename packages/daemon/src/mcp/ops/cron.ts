@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { CronAuthor, CronAuthorOk } from '@agentconnect.md/protocol'
+import { threadContainerFor } from '../../platforms/thread-keys.js'
 import { optionalString, parseArgs, requiredString, unexpectedKeys } from './args.js'
 import type { SessionContext } from './context.js'
 
@@ -41,6 +42,9 @@ export async function scheduleCron(
     throw new Error('scheduleCron: this session has no platform integration, so there is no conversation to fire into.')
   }
   if (!deps.authorCron) throw new Error('scheduleCron is not available in this environment.')
+  // The CONTAINER the conversation sits in, when the platform has one (a Telegram forum topic).
+  // Not `ctx.thread` as such: on Slack that IS the sub-thread the fire must leave behind.
+  const container = threadContainerFor(ctx.platform, ctx.thread)
   const ok = await deps.authorCron({
     requestId: randomUUID(),
     agentId: ctx.agentId,
@@ -48,9 +52,12 @@ export async function scheduleCron(
     schedule: parsed.schedule,
     timezone: parsed.timezone,
     trigger: parsed.prompt,
-    // `ctx.thread` is deliberately not sent: the fire's thread derives from the cron id, so the
-    // reply lands in this conversation as a new thread rather than reviving the one that asked.
-    target: { platform: ctx.platform, channel: ctx.channel, integrationId: ctx.integrationId }
+    target: {
+      platform: ctx.platform,
+      channel: ctx.channel,
+      integrationId: ctx.integrationId,
+      ...(container !== undefined ? { thread: container } : {})
+    }
   })
   return {
     cronId: ok.cronId,

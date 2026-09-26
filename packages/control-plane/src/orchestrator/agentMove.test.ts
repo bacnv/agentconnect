@@ -153,6 +153,7 @@ const cron = {
   timezone: 'UTC',
   targetPlatform: 'slack',
   targetChannel: null,
+  targetThread: null,
   targetIntegrationId: null,
   trigger: 'daily',
   enabled: true,

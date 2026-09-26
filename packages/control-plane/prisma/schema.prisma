@@ -1695,6 +1695,7 @@ model CronDef {
   targetPlatform       String             @default("slack")
   targetChannel        String? // CronUpsert.target.channel; null ⇒ headless fire (no platform output)
   targetIntegrationId  String?            @db.Uuid // CronUpsert.target.integrationId — the agent integration posting the anchor; null (legacy / uninstalled) ⇒ daemon falls back to the agent's first integration
+  targetThread         String? // CronUpsert.target.thread — the forum/topic container the fire posts INSIDE (Telegram); null on every platform whose thread is a sub-conversation
   trigger              String             @db.Text // synthetic trigger text (control metadata)
   enabled              Boolean            @default(true)
   lastRunAt            DateTime?          @db.Timestamptz(6) // advisory (cron/report EVT, latest-wins); daemon authoritative

@@ -40,14 +40,26 @@ interface ThreadKeyStrategy {
   /** Whether a non-DM root post must be turned into a native thread before its
    *  session can be initialized. */
   materializeRootThread?: boolean
+  /** The thread coordinate when it names a CONTAINER the conversation lives in rather than a
+   *  sub-conversation inside it — see `threadContainerFor`. Absent ⇒ every thread here is a
+   *  sub-conversation. */
+  container?: (thread: string) => string | undefined
 }
 
 const STRATEGIES = new Map<string, ThreadKeyStrategy>([
   // Guild threads use the starter message id; DMs are continuous.
   ['discord', { key: (channel, ts, isDm) => (isDm ? channel : ts), dmSensitive: true, materializeRootThread: true }],
   // Reply-based threading: numeric message ids enter the `tg:` reply-root
-  // namespace; DMs are one continuous conversation.
-  ['telegram', { key: (_channel, ts, isDm) => (isDm ? 'dm' : /^\d+$/.test(ts) ? `tg:${ts}` : ts), dmSensitive: true }],
+  // namespace; DMs are one continuous conversation. A NUMERIC thread is the one
+  // exception — that is a forum topic, a container this key cannot express.
+  [
+    'telegram',
+    {
+      key: (_channel, ts, isDm) => (isDm ? 'dm' : /^\d+$/.test(ts) ? `tg:${ts}` : ts),
+      dmSensitive: true,
+      container: (thread) => (/^\d+$/.test(thread) ? thread : undefined)
+    }
+  ],
   // Group chats thread off the post; a DM is keyed by the chat itself.
   ['feishu', { key: (channel, ts, isDm) => (isDm ? channel : ts), dmSensitive: true }]
 ])
@@ -73,4 +85,12 @@ export function rootPostThreadName(text: string): string {
  *  own ts, the Slack/core rule. */
 export function threadKeyForPost(platform: string, channel: string, ts: string, isDm = false): string {
   return STRATEGIES.get(platform)?.key(channel, ts, isDm) ?? ts
+}
+
+/** The thread coordinate when it names a CONTAINER (a Telegram forum topic) rather than a
+ *  sub-conversation, and undefined otherwise — a caller places a new post inside a container but
+ *  must open its own sub-conversation elsewhere. The same numeric test the key strategy applies
+ *  in reverse, kept here so the two cannot drift. */
+export function threadContainerFor(platform: string, thread: string | undefined): string | undefined {
+  return thread === undefined ? undefined : STRATEGIES.get(platform)?.container?.(thread)
 }

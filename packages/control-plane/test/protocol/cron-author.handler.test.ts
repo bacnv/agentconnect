@@ -132,6 +132,45 @@ describe('cron/author over the real WS edge', () => {
     })
   })
 
+  it('carries the forum topic through the row and back down to the daemon', async () => {
+    const h = buildWsHarness(prisma)
+    const stub = await ready(h)
+    const sentBefore = stub.sent.length
+
+    const id = stub.inject(
+      'cron/author',
+      authorPayload({
+        target: { platform: 'telegram', channel: '-1001234567890', integrationId: INTEGRATION, thread: '6' }
+      }),
+      { id: randomUUID(), orgId: DEFAULT_ORG_ID }
+    )
+    await stub.settled()
+    const reply = stub.sent.slice(sentBefore).find((f) => f.type === 'cron/author/ok' && f.corr === id)
+    if (!reply || !isFrame('cron/author/ok')(reply)) throw new Error('expected a correlated cron/author/ok')
+
+    // The column is what the console and the placement re-push both read; a def that lost it
+    // would fire into General again on the next daemon restart.
+    const row = await prisma.cronDef.findUniqueOrThrow({ where: { id: reply.payload.cronId } })
+    expect(row.targetThread).toBe('6')
+
+    const pushed = stub.sent.slice(sentBefore).find((f) => f.type === 'cron/upsert')
+    if (!pushed || !isFrame('cron/upsert')(pushed)) throw new Error('expected a cron/upsert push')
+    expect(pushed.payload.target).toMatchObject({ channel: '-1001234567890', thread: '6' })
+  })
+
+  it('leaves targetThread null when the conversation had no container', async () => {
+    const h = buildWsHarness(prisma)
+    const stub = await ready(h)
+
+    const id = stub.inject('cron/author', authorPayload(), { id: randomUUID(), orgId: DEFAULT_ORG_ID })
+    await stub.settled()
+    const reply = stub.sent.find((f) => f.type === 'cron/author/ok' && f.corr === id)
+    if (!reply || !isFrame('cron/author/ok')(reply)) throw new Error('expected a correlated cron/author/ok')
+
+    const row = await prisma.cronDef.findUniqueOrThrow({ where: { id: reply.payload.cronId } })
+    expect(row.targetThread).toBeNull()
+  })
+
   it('refuses a schedule that never fires, and writes no row', async () => {
     const h = buildWsHarness(prisma)
     const stub = await ready(h)

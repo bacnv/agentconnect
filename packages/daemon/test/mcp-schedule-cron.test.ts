@@ -85,6 +85,24 @@ describe('scheduleCron', () => {
     expect(d.authorCron).not.toHaveBeenCalled()
   })
 
+  it('carries the forum topic as a container, and no other thread, into the target', async () => {
+    const d = deps()
+    // A numeric thread on Telegram IS a forum topic — a container the fire must land inside.
+    await scheduleCron({ ...ctx, thread: '6' }, args, d)
+    expect(d.seen[0]!.target).toMatchObject({ channel: '-1001234567890', thread: '6' })
+
+    // A `tg:` reply-root is a sub-conversation, not a place: sending it would revive the
+    // very thread the fire is supposed to leave behind.
+    const reply = deps()
+    await scheduleCron({ ...ctx, thread: 'tg:132914' }, args, reply)
+    expect(reply.seen[0]!.target).not.toHaveProperty('thread')
+
+    // Slack's thread_ts is a sub-conversation too — a wake opens a NEW thread there.
+    const slack = deps()
+    await scheduleCron({ ...ctx, platform: 'slack', thread: '1700.1' }, args, slack)
+    expect(slack.seen[0]!.target).not.toHaveProperty('thread')
+  })
+
   it('carries the CP’s refusal back to the agent verbatim', async () => {
     const d = deps()
     d.authorCron.mockImplementation(async () => {

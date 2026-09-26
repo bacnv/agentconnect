@@ -132,6 +132,7 @@ const author: Handler = async (frame, conn, deps) => {
     timezone: p.timezone,
     targetPlatform: toDbPlatform(integration.platform),
     targetChannel: p.target.channel,
+    ...(p.target.thread ? { targetThread: p.target.thread } : {}),
     targetIntegrationId: integration.id,
     trigger: p.trigger,
     enabled: true
