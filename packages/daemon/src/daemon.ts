@@ -14020,12 +14020,13 @@ export class Daemon {
   /** Append a reply segment to the transcript WITHOUT sending it. Minimal mode keeps
    * earlier narration behind one collapsed live reply; Feishu uses this for every
    * CardKit-delivered body segment. A distinct monotonic ts per call avoids text-row
-   * dedup collisions. Platform-agnostic; runs even headless (no conn). */
-  private async recordReplySegment(p: Pending, text: string): Promise<void> {
+   * dedup collisions, EXCEPT when the segment went out as a real message (`ts`): then
+   * that id is the row's key, so a reply to the visible message resolves back here. */
+  private async recordReplySegment(p: Pending, text: string, ts?: string): Promise<void> {
     await this.store.appendTranscript({
       channel: p.plan.transcriptChannel,
       thread: p.plan.statusThread,
-      ts: monotonicTs(),
+      ts: ts ?? monotonicTs(),
       sender: p.plan.agentId,
       kind: 'text',
       text
@@ -14147,7 +14148,7 @@ export class Daemon {
   private async applyTelegramAction(p: Pending, action: TelegramAction): Promise<void> {
     await applyTelegramActionExternal(
       {
-        recordReplySegment: (turn, text) => this.recordReplySegment(turn as Pending, text),
+        recordReplySegment: (turn, text, ts) => this.recordReplySegment(turn as Pending, text, ts),
         appendTranscript: async (row) => await this.store.appendTranscript(row)
       },
       p,

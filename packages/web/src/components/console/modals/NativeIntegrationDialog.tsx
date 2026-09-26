@@ -152,7 +152,8 @@ function EditChannels({
   onCompleted: (summary: string) => void
 }) {
   const { refresh } = useConsoleData()
-  const allowed = channelListSemantics(integration.platform).triggers
+  // Absent ⇒ the three platform-agnostic values, matching IntegrationChannelList.
+  const allowed = channelListSemantics(integration.platform).triggers ?? ['off', 'mention', 'any']
   const [draft, setDraft] = useState(() =>
     Object.fromEntries(integration.channels.map((row) => [row.channelId, row.trigger]))
   )
@@ -190,13 +191,16 @@ function EditChannels({
               className="inp"
               value={draft[row.channelId]}
               disabled={busy}
-              onChange={(e) => setDraft({ ...draft, [row.channelId]: e.target.value as 'off' | 'mention' | 'any' })}
+              onChange={(e) =>
+                setDraft({ ...draft, [row.channelId]: e.target.value as 'off' | 'mention' | 'mention_topic' | 'any' })
+              }
             >
               <option value="off">Off</option>
-              {row.kind !== 'im' && (!allowed || allowed.includes('mention')) && (
-                <option value="mention">When mentioned</option>
+              {row.kind !== 'im' && allowed.includes('mention') && <option value="mention">When mentioned</option>}
+              {row.kind !== 'im' && allowed.includes('mention_topic') && (
+                <option value="mention_topic">When mentioned, or on a reply</option>
               )}
-              {(row.kind === 'im' || !allowed || allowed.includes('any')) && <option value="any">Every message</option>}
+              {(row.kind === 'im' || allowed.includes('any')) && <option value="any">Every message</option>}
             </select>
           </label>
         ))}

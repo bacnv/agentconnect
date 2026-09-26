@@ -555,11 +555,12 @@ export interface WebChannelListSemantics {
   /** `'observed'` (default): rows record rooms the bot was seen in and can be dropped; `'derived'`: the platform's own roster, nothing added or removed here. */
   roster?: 'observed' | 'derived'
   /**
-   * The room row's trigger vocabulary, host order preserved. Absent ⇒ all three
-   * (`off` / `any` / `mention`). A platform that emits no unaddressed traffic drops
-   * `any`, because nothing would ever match it. DM rows keep their binary control.
+   * The room row's trigger vocabulary, host order preserved. Absent ⇒ the three
+   * platform-agnostic values (`off` / `any` / `mention`) — the reply-aware fourth
+   * needs a per-message author lookup only the daemon's transcript can answer, so
+   * it is opt-in per platform. DM rows keep their binary control.
    */
-  triggers?: readonly ('off' | 'mention' | 'any')[]
+  triggers?: readonly ('off' | 'mention' | 'mention_topic' | 'any')[]
   /**
    * Confirmation shown before a row's default dispatch moves OFF a RESTRICTED agent.
    * Where an owner compiles to a per-conversation default rather than an ownership

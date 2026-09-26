@@ -4810,23 +4810,30 @@ export class LocalStore {
   }
 
   /**
-   * The session thread a Telegram message belongs to, recovered from the transcript
-   * (every conversational `text` row carries its platform message id in `ts`, and
-   * Telegram message ids are unique per chat). Backs reply-based session continuity:
-   * a human reply to a bot message (`reply_to_message.message_id`) resolves to the
-   * session that bot message was posted in. Undefined when the id was never recorded
-   * as text (e.g. a reply to transient chrome, or an unknown message).
+   * The session thread a Telegram message belongs to AND who wrote it, recovered from
+   * the transcript (every conversational `text` row carries its platform message id in
+   * `ts` and its author in `sender`; Telegram message ids are unique per chat). Backs
+   * reply-based session continuity: a human reply to a bot message
+   * (`reply_to_message.message_id`) resolves to the session that bot message was posted
+   * in. The author is what makes a reply an ADDRESS rather than mere continuity — an
+   * agent id means the human answered the agent. Undefined when the id was never
+   * recorded as text (e.g. a reply to transient chrome, or an unknown message).
    *
    * The one transcript read with no org fence, because it runs BEFORE routing picks an
    * agent. It is safe unfenced: `channel` is the physical-bot-scoped transcript key, one
-   * integration owns that bot, one org owns that integration — and it returns a thread id,
-   * never content.
+   * integration owns that bot, one org owns that integration — and it returns a thread id
+   * and an author id, never content.
    */
-  async telegramThreadForMessage(channel: string, messageId: string): Promise<string | undefined> {
+  async telegramThreadForMessage(
+    channel: string,
+    messageId: string
+  ): Promise<{ thread: string; sender: string } | undefined> {
     const row = (await this.db
-      .prepare("SELECT thread FROM transcript WHERE channel = ? AND ts = ? AND kind = 'text' ORDER BY seq DESC LIMIT 1")
-      .get(channel, messageId)) as { thread: string } | undefined
-    return row?.thread
+      .prepare(
+        "SELECT thread, sender FROM transcript WHERE channel = ? AND ts = ? AND kind = 'text' ORDER BY seq DESC LIMIT 1"
+      )
+      .get(channel, messageId)) as { thread: string; sender: string } | undefined
+    return row
   }
 
   async openSessionAgents(channel: string, thread: string, transportScope?: string | null): Promise<string[]> {

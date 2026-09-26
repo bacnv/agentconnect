@@ -994,7 +994,7 @@ export const MCP_TOOLS: McpToolDef[] = [
       .object({
         integrationId: z.string().min(1).describe('The integration id (from listIntegrations)'),
         channelId: z.string().min(1).describe('The platform channel id (from listIntegrations channels)'),
-        trigger: z.enum(['off', 'mention', 'any']).optional(),
+        trigger: z.enum(['off', 'mention', 'mention_topic', 'any']).optional(),
         agentId: z
           .string()
           .min(1)

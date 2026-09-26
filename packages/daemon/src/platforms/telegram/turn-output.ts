@@ -31,6 +31,9 @@ export interface TelegramTurnState {
   /** The turn's newest body message, so a turn-end `continue-hint` can annotate
    *  the message users are actually told to reply to. */
   lastBody?: { id: string; text: string }
+  /** Set when this turn posted its live message and no transcript row carries its id yet;
+   *  the next recorded segment consumes it, so a reply to what the human can see resolves. */
+  liveReplyStampPending?: boolean
 }
 
 /** The core turn, as Telegram's applier sees it — the fields it renders with and
@@ -61,8 +64,9 @@ export interface TelegramTurn {
  *  said, which core owns because the transcript is not platform-shaped. */
 export interface TelegramTurnHost<TTurn> {
   /** `minimal` mode records each reply segment WITHOUT sending it (the chat shows
-   *  only the single `live-reply`). */
-  recordReplySegment(turn: TTurn, text: string): Promise<void>
+   *  only the single `live-reply`). `ts` is the id of the message that segment went
+   *  out as, when one did — a reply to what the human can see resolves through it. */
+  recordReplySegment(turn: TTurn, text: string, ts?: string): Promise<void>
   appendTranscript(row: {
     channel: string
     thread: string
@@ -83,7 +87,12 @@ export async function applyTelegramAction<TTurn extends TelegramTurn>(
   // minimal mode records each reply segment WITHOUT sending it — the chat shows only the
   // single `live-reply` (see the Slack applier / recordReplySegment).
   if (action.kind === 'post' && action.recordOnly) {
-    await host.recordReplySegment(turn, action.text)
+    // The live message IS this segment in the chat, so it wears the segment's text — record
+    // it under that message's id (once) instead of the local ts, or a reply to it resolves
+    // to nothing and an explicit-address topic never wakes (continue-the-topic contract).
+    const stamp = state.liveReplyStampPending ? turn.chrome.liveReplyTs : undefined
+    state.liveReplyStampPending = false
+    await host.recordReplySegment(turn, action.text, stamp)
     return
   }
   // Routed here only for the telegram platform (see the turn-output registry), so the
@@ -136,6 +145,9 @@ export async function applyTelegramAction<TTurn extends TelegramTurn>(
         turn.chrome.liveReplyTs = await conn.postMessage(turn.plan.channel, action.text, turn.plan.thread, {
           replyTo: state.replyTo
         })
+        // This message is what the human sees and replies to, so the closing segment's row
+        // must carry its id — see the `recordOnly` branch above.
+        if (turn.chrome.liveReplyTs) state.liveReplyStampPending = true
       }
       return
     }

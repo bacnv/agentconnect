@@ -276,6 +276,10 @@ local agents, it must not fall back to thread affinity. It may retain the messag
 later transcript catch-up, but it must not start a model turn. Thread affinity applies
 only to follow-ups with no explicit mention.
 
+A conversation on the reply-aware trigger is the one place where having joined a thread
+does not carry an obligation to keep answering: there, an explicit address is required
+again every time. See "Per-conversation trigger".
+
 A third-party Slack app or bot may wake an AgentConnect agent only by explicitly
 mentioning that agent's bot. It must not enter through DM, thread-affinity, keyword, or
 auto ("every message") routing.
@@ -504,10 +508,30 @@ the wrong session.
 
 ## Per-conversation trigger
 
-Every conversation a bot is in carries a trigger. Channels and group DMs expose all
-three settings — Off, every message, or @-mention (the default); a 1:1 DM presents the
-equivalent compact Off / On control. Off is not a gating feature: an org-visible agent
-is entitled to the same control as a restricted one.
+Every conversation a bot is in carries a trigger. Channels and group DMs choose from a
+four-value vocabulary — Off, every message, @-mention (the default), or @-mention + reply —
+offered as far as each platform can implement it; a 1:1 DM presents the equivalent compact
+Off / On control. Off is not a gating feature: an org-visible agent is entitled to the same
+control as a restricted one.
+
+**@-mention + reply** is for a room where an agent should answer only when it is actually
+addressed. A reply to one of the agent's own messages is an address: the person picked
+that message to answer it, so the agent answers back. Anything else in the conversation
+is ignored, including follow-ups in a thread the agent had already joined — joining a
+thread is not a standing invitation, and in a busy topic that difference is the whole
+point. The setting is offered on Telegram, whose daemon can tell who wrote the message
+being replied to. On platforms where the Console does not offer it the row is simply
+absent, because the reply half is not something a platform can fake.
+
+Two consequences an operator would otherwise read as bugs:
+
+- A reply does **not** resume an agent stopped with `!stop`. The documented contract stays
+  "@mention me to resume", and the reply-aware setting already ignores unaddressed traffic,
+  so a reply is not the way back.
+- In a reply-aware conversation one agent's own visible post wakes no peer implicitly. A
+  peer needs an explicit hand-off or an @-mention — which is exactly what the setting's
+  label promises, and the reason it is not used where agents are expected to pick up each
+  other's work from the room.
 
 Off means the agent does not respond in that conversation at all. Not to an @-mention, not to
 a follow-up in a thread it had already joined, not to a control command, and not through

@@ -2474,10 +2474,13 @@ model Integration {
 }
 
 // How the bot activates in one conversation: not at all (conversation gating,
-// resource-visibility.md §14), only when @-mentioned, or on any message.
+// resource-visibility.md §14), only when @-mentioned, on any message, or only on
+// an explicit address — an @-mention or a reply to one of the agent's own
+// messages (the reply half needs a transcript lookup, so it is per-platform).
 enum ChannelTrigger {
   off
   mention
+  mention_topic
   any
 }
 

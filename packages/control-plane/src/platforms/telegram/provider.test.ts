@@ -236,7 +236,7 @@ describe('telegram projection equivalence with the live integrationToSpec path',
       integrationId: INTEGRATION.id,
       agentId: INTEGRATION.agentId,
       platform: 'telegram',
-      core: { mode: 'direct', bindRules, mutedChannels: ['-300'], gated: false },
+      core: { mode: 'direct', bindRules, mutedChannels: ['-300'], affinityDenied: [], gated: false },
       // §6.4 final shape: platform-private material ONLY — the routing knobs
       // ride the core envelope, never the config payload.
       config: { botToken: '123456:ABC-tg-token' }

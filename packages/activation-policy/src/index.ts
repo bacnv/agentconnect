@@ -35,6 +35,10 @@ export interface ActivationRule {
    *  purely additive rule set cannot express. Carried per rule so the ladder
    *  stays pure and every rung is fenced by the one scope filter. */
   mutedChannels?: string[]
+  /** Conversations that admit only an explicit address (an @-mention or a reply to one
+   *  of this agent's own messages). The implicit continuity rungs are denied here, so an
+   *  open session alone never delivers — unlike `mutedChannels`, which silences outright. */
+  affinityDenied?: string[]
   source: 'config' | 'cp'
   epoch?: number // cp layer only
   /** Platform this rule belongs to. Undefined = matches any platform
@@ -52,6 +56,9 @@ export interface ActivationMessageFacts {
   isDm: boolean
   mentionedBots: string[]
   sender: { isBot: boolean }
+  /** The transcript author of the message this one replies to, where the platform can
+   *  resolve it — an agent id for one of ours, a platform user id for a person's. */
+  replyToAuthor?: string
 }
 
 // ─── routeRules: arbitration ladder over the merged (local ∪ CP) rule set ───
@@ -77,6 +84,25 @@ function scopeMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
   if (!channelInScope(r.scope.channel, msg)) return false
   if (r.scope.thread !== undefined && r.scope.thread !== msg.thread) return false
   return true
+}
+
+/** Does an explicit address reach an agent whose `affinityDenied` fences this conversation?
+ *  Exported for the resolvers that pick a target by COORDINATE alone (control commands),
+ *  which hold the fence but no rule to run the ladder over. */
+export function affinityAdmits(
+  denied: readonly string[] | undefined,
+  agentId: string,
+  msg: ActivationMessageFacts
+): boolean {
+  if (!denied?.some((fenced) => channelInScope(fenced, msg))) return true
+  return msg.replyToAuthor !== undefined && msg.replyToAuthor === agentId
+}
+
+/** Is this rule reachable here by continuity alone — an open session, not an address?
+ *  Separate from `scopeMatches`, which is the DELIVERY fence: putting this there would
+ *  kill @-mentions too, which is what `off` does and this must not. */
+function continuityAdmits(r: ActivationRule, msg: ActivationMessageFacts): boolean {
+  return affinityAdmits(r.affinityDenied, r.agentId, msg)
 }
 
 function kindMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
@@ -123,7 +149,7 @@ export function participantAgents(
   exclude?: string
 ): string[] {
   if (participants.length === 0) return []
-  const servable = new Set(rules.filter((r) => scopeMatches(r, msg)).map((r) => r.agentId))
+  const servable = new Set(rules.filter((r) => scopeMatches(r, msg) && continuityAdmits(r, msg)).map((r) => r.agentId))
   return participants.filter((id) => id !== exclude && servable.has(id))
 }
 
@@ -192,7 +218,7 @@ export function routeRules(
       // PARTICIPATION, not channel reachability, is the disambiguator (§8.5): route an
       // un-mentioned follow-up to that owner if it's reachable here, regardless of how
       // many other bots are also bound to the channel.
-      const ownerRule = scopeCandidates.find((x) => x.agentId === owner)
+      const ownerRule = scopeCandidates.find((x) => x.agentId === owner && continuityAdmits(x, msg))
       if (ownerRule) return pickRule(ownerRule, 'thread') // continuity, kind-agnostic
     }
   }

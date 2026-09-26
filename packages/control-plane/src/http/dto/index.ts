@@ -916,7 +916,7 @@ export const IntegrationChannelDto = z.object({
   url: z.string().nullable(),
   isPrivate: z.boolean(),
   kind: z.enum(['channel', 'im', 'mpim']),
-  trigger: z.enum(['off', 'mention', 'any']),
+  trigger: z.enum(['off', 'mention', 'mention_topic', 'any']),
   /** Effective per-conversation owner for a shared bot (§10.1); null before convergence
    *  or when ownership does not apply. */
   agentId: z.string().nullable()
@@ -1791,7 +1791,7 @@ export const SlackAppFinalizeBody = z.object({
  *  At least one field; an active shared channel always has an owner. */
 export const UpdateIntegrationChannelBody = z
   .object({
-    trigger: z.enum(['off', 'mention', 'any']).optional(),
+    trigger: z.enum(['off', 'mention', 'mention_topic', 'any']).optional(),
     agentId: z.string().min(1).optional()
   })
   .refine((b) => b.trigger !== undefined || b.agentId !== undefined, {

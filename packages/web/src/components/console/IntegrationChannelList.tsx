@@ -40,8 +40,10 @@ function TriggerToggle({
   // else to say so. A GROUP DM takes the channel's choice, not the DM's: several people
   // share it, so "every message" must stay opt-in.
   const here = `this ${rowNoun(channel.kind, platform)}`
-  // The room's vocabulary is the platform's: nothing matches "any message" where no unaddressed traffic exists.
-  const allowed = channelListSemantics(platform).triggers
+  // Absent ⇒ the three platform-agnostic values. The reply-aware fourth is opt-in per
+  // platform: its reply half needs a per-message author lookup only the daemon's
+  // transcript can answer.
+  const allowed = channelListSemantics(platform).triggers ?? ['off', 'mention', 'any']
   const roomOptions: TriggerOption<IntegrationChannelRow['trigger']>[] = [
     { value: 'off', label: 'off', hint: `The agent doesn't respond in ${here}, even when @-mentioned.` },
     { value: 'any', label: 'any message', hint: `The agent responds to every message in ${here}.` },
@@ -49,6 +51,11 @@ function TriggerToggle({
       value: 'mention',
       label: '@-mention',
       hint: "The agent responds when @-mentioned. Follow-ups in a thread it has joined don't need another mention."
+    },
+    {
+      value: 'mention_topic',
+      label: '@-mention + reply',
+      hint: `The agent responds only when @-mentioned or when someone replies to one of its own messages in ${here}.`
     }
   ]
   const options: TriggerOption<IntegrationChannelRow['trigger']>[] =
@@ -57,7 +64,7 @@ function TriggerToggle({
           { value: 'off', label: 'off', hint: "The agent doesn't respond in this conversation." },
           { value: 'any', label: 'on', hint: 'The agent responds to messages in this conversation.' }
         ]
-      : roomOptions.filter((o) => !allowed || allowed.includes(o.value))
+      : roomOptions.filter((o) => allowed.includes(o.value))
   return (
     <TriggerSelect
       options={options}

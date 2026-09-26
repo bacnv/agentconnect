@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Daemon } from '../src/daemon.js'
 import { routeRules } from '../src/router/routing-table.js'
-import { sessionKey } from '../src/store/local-store.js'
+import { sessionKey, transcriptChannelKey } from '../src/store/local-store.js'
 import type { NormalizedMessage } from '../src/messages/normalized.js'
 import type { TelegramConnection } from '../src/telegram/connection.js'
 import { fakeSlackAppFactory } from './fakes/slack-app.js'
@@ -354,6 +354,56 @@ describe('canonicalizeTelegramThread', () => {
     expect(m.thread).toBe('tg:100')
   })
 
+  it('records the author of the replied-to message, not just its thread', async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+    // The agent's own post: `ts` is the real platform id, `sender` is the agent id.
+    await (daemon as any).store.appendTranscript({
+      channel: '-100',
+      thread: '555',
+      ts: '500',
+      sender: 'bot-a',
+      kind: 'text',
+      text: 'answer'
+    })
+
+    const m = tg(600, { topicId: '555', replyTo: '500' })
+    await (daemon as any).canonicalizeTelegramThread(m)
+
+    expect(m.thread).toBe('555')
+    expect(m.replyToAuthor).toBe('bot-a')
+  })
+
+  it("leaves a reply to a person as that person's id", async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+    await (daemon as any).store.appendTranscript({
+      channel: '-100',
+      thread: '555',
+      ts: '499',
+      sender: 'U1',
+      kind: 'text',
+      text: 'a question'
+    })
+
+    const m = tg(600, { topicId: '555', replyTo: '499' })
+    await (daemon as any).canonicalizeTelegramThread(m)
+
+    // A reply to a human must never read as an address to the agent.
+    expect(m.replyToAuthor).toBe('U1')
+  })
+
+  it('leaves replyToAuthor unset when the replied-to message is unknown', async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+
+    const m = tg(600, { topicId: '555', replyTo: '999' })
+    await (daemon as any).canonicalizeTelegramThread(m)
+
+    expect(m.thread).toBe('555')
+    expect(m.replyToAuthor).toBeUndefined()
+  })
+
   it('roots a basic-group reply on the replied-to message when the transcript has no record', async () => {
     const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
     await daemon.start()
@@ -591,6 +641,76 @@ describe('group command routing (no mention entity)', () => {
   })
 })
 
+describe('group command routing under the explicit-address fence', () => {
+  /** bot-a with an affinityDenied topic: only an address reaches it, and a control
+   *  command is not one. */
+  function makeFencedTelegram(daemon: Daemon) {
+    const a = (daemon as any).agents.get('bot-a')
+    a.integrations = [
+      {
+        id: 'i-tg',
+        platform: 'telegram',
+        core: {
+          bindRules: [{ match: { kind: 'mention' } }],
+          mutedChannels: [],
+          affinityDenied: ['-100']
+        },
+        config: { botToken: '123:abc', botUsername: 'mybot' }
+      }
+    ]
+    const conn = {
+      postMessage: vi.fn(async () => 'out-1'),
+      postChrome: vi.fn(async () => 'chrome-1'),
+      postCard: vi.fn(async () => 'card-1'),
+      editCard: vi.fn(async () => {}),
+      answerCallback: vi.fn(async () => {}),
+      sendChatAction: vi.fn(async () => {})
+    }
+    ;(daemon as any).tgConnByIntegration.set('i-tg', conn)
+    ;(daemon as any).botUserIds['i-tg'] = 'mybot'
+    return conn
+  }
+
+  it('does not let an unaddressed !queue revive the fenced topic’s session', async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+    makeFencedTelegram(daemon)
+    await seedSession(daemon, '-100', '555')
+    const dispatch = vi.spyOn(daemon as any, 'dispatch').mockResolvedValue('acp')
+
+    // No @mention, no reply — exactly the traffic the fence exists to ignore.
+    await (daemon as any).onInboundOutcome(tg(300, { topicId: '555', text: '!queue ship it' }), ['i-tg'])
+
+    expect(dispatch).not.toHaveBeenCalled()
+    await daemon.stop()
+  })
+
+  it('still admits a control command that replies to the agent’s own message', async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+    makeFencedTelegram(daemon)
+    // The bot's own post, under the physical-bot transcript key ingress reads.
+    const scope = (daemon as any).transportScopeForIntegrationIds(['i-tg'])
+    await (daemon as any).store.appendTranscript({
+      channel: transcriptChannelKey('-100', scope),
+      thread: '555',
+      ts: '500',
+      sender: 'bot-a',
+      kind: 'text',
+      text: 'answer'
+    })
+    await seedSession(daemon, '-100', '555')
+    const dispatch = vi.spyOn(daemon as any, 'dispatch').mockResolvedValue('acp')
+
+    await (daemon as any).onInboundOutcome(tg(301, { topicId: '555', replyTo: '500', text: '!queue ship it' }), [
+      'i-tg'
+    ])
+
+    expect(dispatch).toHaveBeenCalled()
+    await daemon.stop()
+  })
+})
+
 /** Inject a host advertising model/effort/permission selectors for bot-a. */
 function injectHost(daemon: Daemon) {
   const host = {
@@ -750,8 +870,32 @@ describe('continue-the-topic hint delivery', () => {
     // resolves through it (LocalStore.telegramThreadForMessage).
     const rows = await (daemon as any).store.threadTranscript('-100', 'tg:100')
     expect(rows.at(-1)).toMatchObject({ text: 'answer', ts: 'out-9' })
-    expect(await (daemon as any).store.telegramThreadForMessage('-100', 'out-9')).toBe('tg:100')
+    expect(await (daemon as any).store.telegramThreadForMessage('-100', 'out-9')).toMatchObject({
+      thread: 'tg:100',
+      sender: 'bot-a'
+    })
     expect(p.turnState).toMatchObject({ lastBody: { id: 'out-9', text: 'answer\n\n↩️ hint' } })
+    await daemon.stop()
+  })
+
+  it('resolves a reply to the minimal-mode live reply back to its session', async () => {
+    const daemon = new Daemon({ slackAppFactory: fakeSlackAppFactory(), root: scaffold() })
+    await daemon.start()
+    const { apply } = pending(daemon)
+
+    // minimal mode's turn end: settle the single in-place message, then record the segment.
+    await apply({ kind: 'live-reply', text: 'answer' })
+    await apply({ kind: 'post', text: 'answer', recordOnly: true })
+
+    // An explicit-address topic asks "did this reply address the agent?" — answered only if
+    // the message the human replied to resolves here.
+    expect(await (daemon as any).store.telegramThreadForMessage('-100', 'out-9')).toMatchObject({
+      thread: 'tg:100',
+      sender: 'bot-a'
+    })
+    // The live message IS the segment's row — not a second copy of the same answer.
+    const rows = await (daemon as any).store.threadTranscript('-100', 'tg:100')
+    expect(rows.filter((r: { text: string }) => r.text === 'answer')).toHaveLength(1)
     await daemon.stop()
   })
 
