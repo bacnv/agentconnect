@@ -114,6 +114,15 @@ export function optionalPositiveInt(key: string) {
     .transform((value) => value ?? undefined)
 }
 
+/** A stray key is almost always a SIBLING tool's argument; refuse it by name rather than dropping
+ *  it, which is the difference between a guarantee and a silent strip (#1921). */
+export const unexpectedKeys: { error: z.core.$ZodErrorMap } = {
+  error: (issue) =>
+    issue.code === 'unrecognized_keys'
+      ? `unexpected argument${issue.keys.length > 1 ? 's' : ''}: ${issue.keys.join(', ')}`
+      : undefined
+}
+
 /** An optional numeric argument that keeps the historical `Number(value)` coercion (so `"3"`
  *  still works) and falls back to `fallback` when absent. */
 export function coercedIntWithDefault(min: number, max: number, fallback: number, message: string) {
