@@ -144,9 +144,7 @@ export function rulesFromAgent(agent: Agent, botUserIds: Record<string, string>)
 /** Resolve a stored CP rule to a RoutingRule; null if the agent is unservable. */
 export function resolveCpRule(
   cp: CpRule,
-  resolve: (
-    agentId: string
-  ) => {
+  resolve: (agentId: string) => {
     integrationId: string
     botUserId: string
     platform: string
