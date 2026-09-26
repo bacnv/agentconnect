@@ -28,7 +28,8 @@ import {
   PgIntegrationChannelRepo,
   PgRuntimeProfileRepo,
   PgSessionRepo,
-  PgSessionUsageRepo
+  PgSessionUsageRepo,
+  PgAuditRepo
 } from '../../src/persistence/index.js'
 import { PgMemberSetRepo } from '../../src/persistence/repositories/member-set.repo.js'
 import { PlaintextSecretCipher } from '../../src/secrets/cipher.js'
@@ -95,6 +96,7 @@ export function buildDaemonApp(prisma: PrismaClient): DaemonApp {
     agentSecret: new PgAgentSecretStore(prisma, cipher),
     assignment: new PgAssignmentRepo(prisma),
     cron: new PgCronRepo(prisma),
+    audit: new PgAuditRepo(prisma),
     hook: new PgHookRepo(prisma),
     lease: new PgSecretLeaseRepo(prisma),
     integration: new PgIntegrationRepo(prisma),
@@ -174,6 +176,8 @@ export function buildDaemonApp(prisma: PrismaClient): DaemonApp {
         onRegister: () => undefined
       } as unknown as DaemonWsDeps['dutyLease'],
       cron: repos.cron,
+      audit: repos.audit,
+      agentDelivery: { cronUpsert: async () => undefined } as unknown as DaemonWsDeps['agentDelivery'],
       hook: repos.hook,
       relayRoster: async () => [],
       clock,

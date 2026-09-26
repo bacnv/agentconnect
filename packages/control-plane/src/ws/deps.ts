@@ -19,6 +19,7 @@ import type {
   HookRepo,
   MemberSetRepo,
   AgentRepo,
+  AuditRepo,
   ExternalMemoryConnectionRepo,
   WebchatConversationRepo,
   LaunchRepo,
@@ -48,6 +49,7 @@ import type { Clock } from '../domain/clock.js'
 import type { SessionEventSink } from '../events/sink.js'
 import type { AgentMutationGate } from '../orchestrator/agentMutationGate.js'
 import type { PlacementResolver } from '../orchestrator/placementResolver.js'
+import type { AgentDelivery } from '../orchestrator/agentDelivery.js'
 import type { CollabRoutesService } from '../orchestrator/collabRoutes.service.js'
 import type { GatedDmSeedResolver } from '../orchestrator/linkedDm.js'
 import type { ApprovalRouteResolver } from '../orchestrator/approvalRoute.js'
@@ -139,6 +141,15 @@ export interface DaemonWsDeps {
   agentBundle?: (agent: AgentRecord) => Promise<DutyAgentBundle>
   /** Stamps `lastRunAt` from the `cron/report` EVT (daemon-scoped, latest-wins). */
   cron: CronRepo
+  /** The operator-visible trail an agent-authored write leaves: the same `cron_change` row
+   *  the PUT route appends, told apart by `frameType: 'cron/author'`. */
+  audit: AuditRepo
+  /** Pushes an authored def back down as `cron/upsert`, over placement ∪ live duty holders —
+   *  the same fan-out every other replicate site uses. */
+  agentDelivery: AgentDelivery
+  /** An enabled cron is a duty edge, so authoring one changes the group's claimability —
+   *  the route kicks the same sweep. */
+  recomputeDuties?: (orgId: string) => void
   /** Closes `HookRun` rows from the correlated `hook/report` completion request. */
   hook: HookRepo
   /** Viewer-free agent reads for the `gitcred/request` placement check — a DATA-PLANE

@@ -18,6 +18,7 @@ import {
   AGENT_PLACEMENT_FEATURE,
   AGENT_MEMORY_HISTORY_READ_V1_FEATURE,
   AGENT_MEMORY_STORE_V1_FEATURE,
+  AGENT_CRON_AUTHOR_FEATURE,
   APPROVAL_DM_ROUTE_V1_FEATURE,
   CODEHOST_NOTE_PROJECTION_V1_FEATURE,
   CODEHOST_REVIEW_V1_FEATURE,
@@ -131,7 +132,10 @@ export const handleRegister: Handler = async (frame, conn, deps) => {
       AGENT_MEMORY_STORE_V1_FEATURE,
       AGENT_MEMORY_HISTORY_READ_V1_FEATURE,
       MEMORY_TRANSACTION_V1_FEATURE,
-      MEMORY_CAPTURE_FENCE_V1_FEATURE
+      MEMORY_CAPTURE_FENCE_V1_FEATURE,
+      // An agent can author its own cron (`cron/author`). A daemon must not send that REQ before
+      // seeing this: a new request type is frame-fatal to an older CP.
+      AGENT_CRON_AUTHOR_FEATURE
     ]
   })
   deps.connReg.markReady(conn.daemonId, conn)
