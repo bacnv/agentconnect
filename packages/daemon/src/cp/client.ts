@@ -26,6 +26,8 @@ import type {
   SessionPurged,
   IntegrationChannels,
   CronReport,
+  CronAuthor,
+  CronAuthorOk,
   HookReport,
   HookStart,
   HookStartOk,
@@ -988,6 +990,18 @@ export class CpClient {
       throw new WireError('INTERNAL', `expected gitcred/grant, got ${rep.type}`, false)
     }
     return rep.payload as GitCredGrant
+  }
+
+  /** Author a cron for one agent (D→C `cron/author` REQ). The ordinary retry, not
+   *  `requestGitCred`'s one shot: the CP derives the cron id from the frame's `requestId`, so a
+   *  retransmit answers the same cron and a dropped reply costs nothing. */
+  async authorCron(payload: CronAuthor): Promise<CronAuthorOk> {
+    this.requireReady('cron/author')
+    const rep = await this.request('cron/author', payload)
+    if (rep.type !== 'cron/author/ok') {
+      throw new WireError('INTERNAL', `expected cron/author/ok, got ${rep.type}`, false)
+    }
+    return rep.payload as CronAuthorOk
   }
 
   /** Request a fresh Linear access token (linear-integration.md §7.3) — same posture as
