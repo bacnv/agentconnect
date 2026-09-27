@@ -197,6 +197,40 @@ export class ObservedChannelsSync {
     await this.observePlatformChats(platform, [chat], integrationIds)
   }
 
+  /** Record one forum topic on its conversation's row, bypassing `observePlatformChats`' name
+   *  gate: a topic learned from traffic has no name, and the id is the row's identity.
+   *  `forumName` is the topic's own, never the conversation's `name` in the same object. */
+  async observeForumTopic(
+    platform: string,
+    topic: ObservedChat & { threadId: string; forumName?: string },
+    integrationIds: readonly string[]
+  ): Promise<void> {
+    const snapshots = this.host.channelSnapshots()
+    for (const integrationId of integrationIds) {
+      const integration = this.host.integrationConfigById(integrationId)
+      if (!integration || integration.platform !== platform) continue
+      const channels = snapshots.get(integrationId)?.channels ?? []
+      const current = channels.find((channel) => channel.id === topic.id)
+      const held = current?.threads ?? []
+      const known = held.find((t) => t.id === topic.threadId)
+      // Emit only what would LEARN something: this runs on every message in a forum, and a
+      // named topic's later traffic carries no name. `known &&` is load-bearing — an unseen
+      // topic and a nameless sighting are both `undefined`, and that must not read as "same".
+      if (known && (!topic.forumName || known.name === topic.forumName)) continue
+      const next = known
+        ? held.map((t) =>
+            t.id === topic.threadId ? { ...t, ...(topic.forumName ? { name: topic.forumName } : {}) } : t
+          )
+        : [...held, { id: topic.threadId, ...(topic.forumName ? { name: topic.forumName } : {}) }]
+      const observed: IntegrationChannel = { ...current, id: topic.id, isPrivate: topic.isPrivate, threads: next }
+      const channelsNext = current
+        ? channels.map((channel) => (channel.id === topic.id ? observed : channel))
+        : [...channels, observed]
+      snapshots.set(integrationId, { channels: channelsNext, authoritative: false })
+      this.host.cpClient()?.emitIntegrationChannels({ integrationId, channels: channelsNext, authoritative: false })
+    }
+  }
+
   /** The same for a whole set — Linear reports a workspace's teams at once (§4.5), and one
    *  report per integration beats one per conversation on a snapshot they all share. */
   async observePlatformChats(

@@ -145,7 +145,7 @@ export interface ConnectionReconcilerHost extends PlatformActionSink {
   /** Record a forum topic on its conversation's row. A topic learned from traffic has no name, so it bypasses the chat path's name gate. */
   observeForumTopic(
     platform: string,
-    topic: ObservedChat & { threadId: string },
+    topic: ObservedChat & { threadId: string; forumName?: string },
     integrationIds: readonly string[]
   ): Promise<void>
   /** Report one conversation a connection knows it reaches, ahead of any session row. */
@@ -590,7 +590,7 @@ export class ConnectionReconciler {
               id: topic.chatId,
               isPrivate: false,
               threadId: topic.threadId,
-              ...(topic.name ? { name: topic.name } : {})
+              ...(topic.name ? { forumName: topic.name } : {})
             },
             [...integrationIds]
           )
