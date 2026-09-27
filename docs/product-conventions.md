@@ -598,6 +598,29 @@ had no way to know it was private. A channel switched Off says nothing at all: a
 operator already decided, and pointing the room at an admin would be both wrong and
 noise. Off is silence; the gate is a closed door with a sign on it.
 
+### A topic's own trigger (Telegram forum supergroups)
+
+A Telegram forum topic starts out following its group's trigger, and the Console offers it
+for separate configuration once the daemon has seen it. A topic that carries its own trigger
+ignores the group's **entirely** — the group's rules and its fences both:
+
+- `off` on a topic is that topic's own silence, not the group's. The topic stays silent even
+  when the group is loud, and a topic set to anything else stays live even when the group is
+  `off` — which is the one way to say "quiet group, one live topic". `off` at the group level
+  is therefore no longer a guarantee that the group is entirely silent.
+- `mention` on a topic is that topic's own @-mention rule. The group's "any message" does not
+  reach into it.
+- `mention_topic` on a topic keeps the "answer only when addressed" promise inside it, without
+  extending it to topics the operator never meant.
+
+A topic is listed on its group's row in the Console, behind a disclosure. Its trigger control
+carries **Follow group** (the default, and what a newly detected topic gets) plus the same four
+values a conversation takes. Picking Follow group removes the topic's trigger and returns it to
+inheriting, which is also the only removal here: nothing is deleted at Telegram, and a topic
+Telegram has dropped cannot be told apart from one nobody has mentioned lately — so the row
+stays, and an inert row is the remedy. A topic whose name Telegram has not reported prints
+`Topic <id>`.
+
 ## Leaving a conversation and removing its row
 
 Three different things can end a conversation, and the Console must not blur them:
