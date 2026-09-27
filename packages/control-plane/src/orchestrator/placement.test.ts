@@ -103,7 +103,8 @@ const channel = (
   trigger,
   dmUserId: null,
   triggerChosen: false,
-  agentId: null
+  agentId: null,
+  threads: []
 })
 
 describe('integrationToSpec bindRules', () => {

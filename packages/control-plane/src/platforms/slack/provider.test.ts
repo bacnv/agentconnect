@@ -142,7 +142,8 @@ const channel = (
   trigger,
   dmUserId: null,
   triggerChosen: false,
-  agentId: null
+  agentId: null,
+  threads: []
 })
 
 // §9 adoption: the live spec/assign paths reach this provider THROUGH the

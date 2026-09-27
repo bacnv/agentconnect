@@ -1380,6 +1380,72 @@ describe('integration/channels EVT → integration_channel convergence', () => {
     await handleIntegrationChannels(frame, { daemonId: DAEMON } as DaemonConnection, deps)
     expect(await prisma.integrationChannel.count()).toBe(0)
   })
+
+  it('creates a thread row from a report, refreshes its name, and preserves a stored trigger', async () => {
+    await seedDaemon(prisma, DAEMON)
+    running = buildHttpApp(prisma, undefined, undefined, new SpyControl() as unknown as ControlSender)
+    const id = await installTelegram(running)
+    const channels = new PgIntegrationChannelRepo(prisma)
+
+    await report(
+      DAEMON,
+      id,
+      [{ id: '-100', name: 'General', threads: [{ id: '7', name: 'Deploys' }] }],
+      undefined,
+      undefined,
+      false
+    )
+    await channels.setThreadTrigger(IntegrationId(id), '-100', '7', 'off')
+    // A re-report that still carries the topic must NOT blank the operator's trigger —
+    // the refresh is name-only, and the report races a console write.
+    await report(DAEMON, id, [{ id: '-100', name: 'General', threads: [{ id: '7', name: 'Deploys and releases' }] }])
+
+    const listed = await channels.listForIntegration(IntegrationId(id))
+    expect(listed[0]!.threads).toEqual([{ threadId: '7', name: 'Deploys and releases', trigger: 'off' }])
+  })
+
+  it('gives a re-reported thread with no name a row that keeps the name it learned', async () => {
+    await seedDaemon(prisma, DAEMON)
+    running = buildHttpApp(prisma, undefined, undefined, new SpyControl() as unknown as ControlSender)
+    const id = await installTelegram(running)
+    const channels = new PgIntegrationChannelRepo(prisma)
+
+    await report(DAEMON, id, [{ id: '-100', threads: [{ id: '7', name: 'Deploys' }] }], undefined, undefined, false)
+    await report(DAEMON, id, [{ id: '-100', threads: [{ id: '7' }] }], undefined, undefined, false)
+
+    expect((await channels.listForIntegration(IntegrationId(id)))[0]!.threads).toEqual([
+      { threadId: '7', name: 'Deploys', trigger: null }
+    ])
+  })
+
+  it('clears a thread trigger back to inherit, and answers null for an unknown thread', async () => {
+    await seedDaemon(prisma, DAEMON)
+    running = buildHttpApp(prisma, undefined, undefined, new SpyControl() as unknown as ControlSender)
+    const id = await installTelegram(running)
+    const channels = new PgIntegrationChannelRepo(prisma)
+
+    await report(DAEMON, id, [{ id: '-100', threads: [{ id: '7', name: 'Deploys' }] }], undefined, undefined, false)
+    expect(await channels.setThreadTrigger(IntegrationId(id), '-100', '7', 'mention_topic')).toMatchObject({
+      threadId: '7',
+      name: 'Deploys',
+      trigger: 'mention_topic'
+    })
+    expect(await channels.setThreadTrigger(IntegrationId(id), '-100', '7', null)).toMatchObject({ trigger: null })
+    expect(await channels.setThreadTrigger(IntegrationId(id), '-100', '999', 'off')).toBeNull()
+  })
+
+  it('cascades a deleted channel row onto its threads', async () => {
+    await seedDaemon(prisma, DAEMON)
+    running = buildHttpApp(prisma, undefined, undefined, new SpyControl() as unknown as ControlSender)
+    const id = await installTelegram(running)
+
+    await report(DAEMON, id, [{ id: '-100', threads: [{ id: '7' }] }], undefined, undefined, false)
+    expect(await prisma.integrationChannelThread.count({ where: { integrationId: id } })).toBe(1)
+    await prisma.integrationChannel.delete({
+      where: { integrationId_channelId: { integrationId: id, channelId: '-100' } }
+    })
+    expect(await prisma.integrationChannelThread.count({ where: { integrationId: id } })).toBe(0)
+  })
 })
 
 describe('PATCH /integrations/:id/channels/:channelId — a Linear team row', () => {

@@ -10,7 +10,13 @@
  * routes/protocol/daemon.
  */
 import type { Platform, FeishuRegion } from '@agentconnect.md/protocol'
-import type { Bot, Integration, IntegrationChannel, User } from '../../generated/prisma/client.js'
+import type {
+  Bot,
+  Integration,
+  IntegrationChannel,
+  IntegrationChannelThread,
+  User
+} from '../../generated/prisma/client.js'
 import { withAmbientTx, type PrismaLike } from '../prisma.js'
 import { BotExternalIdentityTaken, BotMissing, BotStillShared } from '../errors.js'
 import type {
@@ -29,6 +35,7 @@ import type {
   IntegrationStatus,
   IntegrationChannelRepo,
   IntegrationChannelRecord,
+  IntegrationChannelThreadRecord,
   IntegrationChannelNameRecord,
   ConversationCoordinate,
   ReportedChannel,
@@ -711,7 +718,10 @@ export class PgIntegrationRepo implements IntegrationRepo {
   }
 }
 
-function toChannelRecord(c: IntegrationChannel): IntegrationChannelRecord {
+/** The relation is REQUIRED on the argument, not optional: a row read without its threads
+ *  would map to `threads: []`, which reads as "this conversation has no topics" and would
+ *  silently drop every topic override the route compiler folds from it. */
+function toChannelRecord(c: IntegrationChannel & { threads: IntegrationChannelThread[] }): IntegrationChannelRecord {
   return {
     integrationId: IntegrationId(c.integrationId),
     channelId: c.channelId,
@@ -727,8 +737,13 @@ function toChannelRecord(c: IntegrationChannel): IntegrationChannelRecord {
     trigger: c.trigger as ChannelTrigger,
     dmUserId: c.dmUserId,
     triggerChosen: c.triggerChosen,
-    agentId: c.agentId ? AgentId(c.agentId) : null
+    agentId: c.agentId ? AgentId(c.agentId) : null,
+    threads: (c.threads ?? []).map(toThreadRecord)
   }
+}
+
+function toThreadRecord(t: IntegrationChannelThread): IntegrationChannelThreadRecord {
+  return { threadId: t.threadId, name: t.name, trigger: t.trigger as ChannelTrigger | null }
 }
 
 export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
@@ -842,6 +857,15 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
           END,
           "updatedAt" = NOW()
       `
+      for (const t of c.threads ?? []) {
+        await this.db.integrationChannelThread.upsert({
+          where: { integrationId_channelId_threadId: { integrationId, channelId: c.id, threadId: t.id } },
+          // A report refreshes the NAME only. The trigger is the operator's, and this write
+          // races a console PATCH — writing NULL here would clear an override under it.
+          create: { integrationId, channelId: c.id, threadId: t.id, name: t.name ?? null },
+          update: { ...(t.name !== undefined ? { name: t.name } : {}) }
+        })
+      }
     }
     // Retractions last: a conversation the reporter says it left is gone whatever
     // its kind, including a DM row that no authoritative snapshot could ever delete.
@@ -893,7 +917,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(conversation.key !== undefined ? { key: conversation.key } : {}),
         ...(conversation.url !== undefined ? { url: conversation.url } : {}),
         ...(conversation.dmUserId ? { dmUserId: conversation.dmUserId } : {})
-      }
+      },
+      include: { threads: true }
     })
     return toChannelRecord(row)
   }
@@ -901,6 +926,7 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
   async listForIntegration(integrationId: IntegrationId): Promise<IntegrationChannelRecord[]> {
     const rows = await this.db.integrationChannel.findMany({
       where: { integrationId },
+      include: { threads: true },
       orderBy: [{ name: 'asc' }, { channelId: 'asc' }]
     })
     return rows.map(toChannelRecord)
@@ -910,6 +936,7 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
     // Channels across every active integration of the bot (shared-bot route source).
     const rows = await this.db.integrationChannel.findMany({
       where: { integration: { botId, status: 'active' } },
+      include: { threads: true },
       orderBy: [{ name: 'asc' }, { channelId: 'asc' }]
     })
     return rows.map(toChannelRecord)
@@ -926,7 +953,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
     })
     if (res.count === 0) return null
     const row = await this.db.integrationChannel.findUnique({
-      where: { integrationId_channelId: { integrationId, channelId } }
+      where: { integrationId_channelId: { integrationId, channelId } },
+      include: { threads: true }
     })
     return row ? toChannelRecord(row) : null
   }
@@ -946,7 +974,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(opts?.kind ? { kind: opts.kind } : {}),
         ...(opts?.defaultTrigger ? { trigger: opts.defaultTrigger } : {})
       },
-      update: { agentId }
+      update: { agentId },
+      include: { threads: true }
     })
     return toChannelRecord(row)
   }
@@ -966,9 +995,29 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
     })
     if (res.count === 0) return null
     const row = await this.db.integrationChannel.findUnique({
-      where: { integrationId_channelId: { integrationId, channelId } }
+      where: { integrationId_channelId: { integrationId, channelId } },
+      include: { threads: true }
     })
     return row ? toChannelRecord(row) : null
+  }
+
+  async setThreadTrigger(
+    integrationId: IntegrationId,
+    channelId: string,
+    threadId: string,
+    trigger: ChannelTrigger | null
+  ): Promise<IntegrationChannelThreadRecord | null> {
+    // updateMany → no throw on a missing row: a topic can vanish with its channel between
+    // the console's read and this write, and the updateMany count IS the existence check.
+    const res = await this.db.integrationChannelThread.updateMany({
+      where: { integrationId, channelId, threadId },
+      data: { trigger }
+    })
+    if (res.count === 0) return null
+    const row = await this.db.integrationChannelThread.findUnique({
+      where: { integrationId_channelId_threadId: { integrationId, channelId, threadId } }
+    })
+    return row ? toThreadRecord(row) : null
   }
 
   async namesForOrg(

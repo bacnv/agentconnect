@@ -88,7 +88,8 @@ const channel = (
   trigger,
   dmUserId: null,
   triggerChosen: false,
-  agentId: null
+  agentId: null,
+  threads: []
 })
 
 // §9 adoption: the live spec path reaches this provider THROUGH the registry, so

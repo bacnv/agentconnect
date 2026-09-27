@@ -114,6 +114,7 @@ function channel(over: Partial<IntegrationChannelRecord>): IntegrationChannelRec
     dmUserId: null,
     triggerChosen: false,
     agentId: null,
+    threads: [],
     ...over
   } as IntegrationChannelRecord
 }
