@@ -2544,10 +2544,33 @@ model IntegrationChannel {
   updatedAt     DateTime         @updatedAt @db.Timestamptz(6)
 
   integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  threads     IntegrationChannelThread[]
 
   @@id([integrationId, channelId])
   @@index([agentId])
   @@map("integration_channel")
+}
+
+// A Telegram forum topic's own trigger. Every topic starts on NULL — inherit the enclosing
+// group's value — and clearing the operator's choice returns it there, so the column is
+// nullable rather than defaulted and no `triggerChosen` is needed: there is no default a
+// human did not choose, which is the ambiguity that column exists to resolve on the parent.
+model IntegrationChannelThread {
+  integrationId String
+  channelId     String
+  threadId      String
+  name          String?
+  trigger       ChannelTrigger?
+  firstSeenAt   DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @db.Timestamptz(6)
+
+  // A topic must not outlive the group it belongs to: `replaceSnapshot` deletes the channel
+  // rows a bot has left, and nothing deletes a thread row on its own — Telegram reports no
+  // topic deletion, so a quiet topic and a dropped one are indistinguishable.
+  channel IntegrationChannel @relation(fields: [integrationId, channelId], references: [integrationId, channelId], onDelete: Cascade)
+
+  @@id([integrationId, channelId, threadId])
+  @@map("integration_channel_thread")
 }
 
 // Pending Slack auto-install session (docs/designs/slack-install-smoothing.md §Tier B).
