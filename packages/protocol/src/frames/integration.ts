@@ -137,6 +137,16 @@ export const IntegrationLinearConfig = z.object({
 })
 export type IntegrationLinearConfig = z.infer<typeof IntegrationLinearConfig>
 
+/** A fence target: a whole conversation, or one thread of it (a Telegram forum topic).
+ *  The bare string is the channel-wide form every existing producer sends — an older
+ *  daemon parses it unchanged. */
+export const ScopeRef = z.union([z.string(), z.object({ channel: z.string(), thread: z.string() })])
+export type ScopeRef = z.infer<typeof ScopeRef>
+
+/** A thread-shaped fence target. Its own schema because an override is only ever a thread. */
+export const ThreadRef = z.object({ channel: z.string(), thread: z.string() })
+export type ThreadRef = z.infer<typeof ThreadRef>
+
 /**
  * §6.3 core routing ENVELOPE (integration-plugin-architecture.md D4): the knobs CORE
  * reads — routing, gating, ingress mode — platform-independent. This is the ONLY
@@ -146,11 +156,13 @@ export type IntegrationLinearConfig = z.infer<typeof IntegrationLinearConfig>
 export const IntegrationCoreEnvelope = z.object({
   mode: z.enum(['direct', 'shared']).default('direct'),
   bindRules: z.array(IntegrationBindRule).default([]),
-  mutedChannels: z.array(z.string()).default([]),
+  mutedChannels: z.array(ScopeRef).default([]),
   // Conversations where an implicit continuation (an open session) is denied: only an
   // explicit address — an @-mention or a reply to one of the agent's own messages
   // reaches it. Orthogonal to `mutedChannels`, which silences the conversation outright.
-  affinityDenied: z.array(z.string()).default([]),
+  affinityDenied: z.array(ScopeRef).default([]),
+  /** Threads whose own trigger overrides everything the enclosing channel states. */
+  overriddenThreads: z.array(ThreadRef).default([]),
   gated: z.boolean().default(false)
 })
 export type IntegrationCoreEnvelope = z.infer<typeof IntegrationCoreEnvelope>
@@ -271,6 +283,14 @@ export function conversationLink(key: unknown, url: unknown): { key?: string; ur
  * display metadata: the conversation's short platform handle and the page it opens on the
  * platform, carried as their own fields so no reader ever parses them back out of `name`.
  */
+/** A thread of a conversation that can carry its own trigger (a Telegram forum topic).
+ *  `name` absent = not yet resolved; nothing clears a name, so it is never null. */
+export const IntegrationChannelThread = z.object({
+  id: z.string(),
+  name: z.string().optional()
+})
+export type IntegrationChannelThread = z.infer<typeof IntegrationChannelThread>
+
 export const IntegrationChannel = z.object({
   id: z.string(), // platform conversation id (Slack "C…" / DM "D…")
   name: z.string().optional(), // "#deploys" without the hash (or DM counterpart); absent if lookup failed
@@ -290,7 +310,10 @@ export const IntegrationChannel = z.object({
   // The 1:1 DM counterpart's platform member id (§14.8) — control metadata of the same
   // class as `name`, and the only thing that identifies WHO a private agent's DM row is
   // with. Absent on channels and group DMs, whose membership is a room, not a person.
-  dmUserId: z.string().optional()
+  dmUserId: z.string().optional(),
+  // The conversation's own configurable threads, where the platform has them. Absent
+  // everywhere else, and absent until the daemon has learned one.
+  threads: z.array(IntegrationChannelThread).optional()
 })
 export type IntegrationChannel = z.infer<typeof IntegrationChannel>
 
