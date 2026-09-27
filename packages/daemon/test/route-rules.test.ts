@@ -369,7 +369,8 @@ describe('rulesFromAgent / resolveAgentIntegration (Telegram)', () => {
       botUserId: 'mybot',
       platform: 'telegram',
       mutedChannels: [],
-      affinityDenied: []
+      affinityDenied: [],
+      overriddenThreads: []
     })
     expect(resolveAgentIntegration(undefined, {})).toBeNull()
   })

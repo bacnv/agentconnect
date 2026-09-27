@@ -89,6 +89,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
         bindRules,
         mutedChannels: ['C9'],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: true
       })
       // The envelope read and the self-id strategy are separable: core owns one,
@@ -98,6 +99,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
         bindRules,
         mutedChannels: ['C9'],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: true
       })
       expect(configuredBotSelfId(int)).toBe(selfId)
@@ -190,6 +192,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
       bindRules: [],
       mutedChannels: [],
       affinityDenied: [],
+      overriddenThreads: [],
       gated: false
     })
     expect(integrationCore(int).mode).toBe('direct')
@@ -261,7 +264,8 @@ describe('resolveAgentIntegration', () => {
       botUserId: 'B1',
       platform: 'slack',
       mutedChannels: [],
-      affinityDenied: []
+      affinityDenied: [],
+      overriddenThreads: []
     })
     // falls back to the static botUserId when the map has no entry
     expect(resolveAgentIntegration(a, {})).toEqual({
@@ -269,7 +273,8 @@ describe('resolveAgentIntegration', () => {
       botUserId: 'STATIC',
       platform: 'slack',
       mutedChannels: [],
-      affinityDenied: []
+      affinityDenied: [],
+      overriddenThreads: []
     })
   })
 
@@ -328,25 +333,26 @@ describe('conversationAdmitted', () => {
   const routing = (over: Partial<Parameters<typeof conversationAdmitted>[0]> = {}) => ({
     bindRules: [],
     mutedChannels: [],
+    overriddenThreads: [],
     gated: false,
     ...over
   })
 
   it('admits any conversation of an ungated integration with nothing muted', () => {
-    expect(conversationAdmitted(routing(), 'C1')).toBe(true)
+    expect(conversationAdmitted(routing(), 'C1', undefined)).toBe(true)
   })
 
   it('refuses a muted channel', () => {
     const r = routing({ mutedChannels: ['C1'] })
-    expect(conversationAdmitted(r, 'C1')).toBe(false)
-    expect(conversationAdmitted(r, 'C2')).toBe(true)
+    expect(conversationAdmitted(r, 'C1', undefined)).toBe(false)
+    expect(conversationAdmitted(r, 'C2', undefined)).toBe(true)
   })
 
   // §14: a gated integration is fail-closed — an unknown conversation has no rule.
   it('admits a gated conversation only when a scoped rule enables it', () => {
     const r = routing({ gated: true, bindRules: [{ channel: 'C1', match: { kind: 'mention' } }] })
-    expect(conversationAdmitted(r, 'C1')).toBe(true)
-    expect(conversationAdmitted(r, 'C2')).toBe(false)
+    expect(conversationAdmitted(r, 'C1', undefined)).toBe(true)
+    expect(conversationAdmitted(r, 'C2', undefined)).toBe(false)
   })
 
   it('lets the mute override an enabling rule — the two fences are independent', () => {
@@ -355,7 +361,38 @@ describe('conversationAdmitted', () => {
       mutedChannels: ['C1'],
       bindRules: [{ channel: 'C1', match: { kind: 'mention' } }]
     })
-    expect(conversationAdmitted(r, 'C1')).toBe(false)
+    expect(conversationAdmitted(r, 'C1', undefined)).toBe(false)
+  })
+
+  it('lets a topic with its own trigger through the group mute, and keeps a channel-wide mute elsewhere', () => {
+    const r = routing({ mutedChannels: ['C1'], overriddenThreads: [{ channel: 'C1', thread: 'T1' }] })
+    expect(conversationAdmitted(r, 'C1', 'T1')).toBe(true)
+    expect(conversationAdmitted(r, 'C1', 'T2')).toBe(false)
+    expect(conversationAdmitted(r, 'C1', undefined)).toBe(false)
+  })
+
+  // A gated integration is still fail-closed in an overridden topic: the missing grant is the Off.
+  it('leaves a gated integration fail-closed in an overridden thread with no grant of its own', () => {
+    const r = routing({ gated: true, overriddenThreads: [{ channel: 'C1', thread: 'T1' }] })
+    expect(conversationAdmitted(r, 'C1', 'T1')).toBe(false)
+  })
+})
+
+describe('integrationRouting overriddenThreads (§6.4 core-envelope read, mirroring mutedChannels)', () => {
+  it('carries the fence from the envelope onto every rule of the integration', () => {
+    const a = agent({
+      integrations: [
+        {
+          id: 'int1',
+          platform: 'telegram',
+          core: {
+            bindRules: [{ match: { kind: 'mention' } }],
+            overriddenThreads: [{ channel: '-100', thread: '7' }]
+          } as Integration['core']
+        }
+      ]
+    })
+    expect(rulesFromAgent(a, {})[0]?.overriddenThreads).toEqual([{ channel: '-100', thread: '7' }])
   })
 })
 

@@ -23,6 +23,7 @@
  * its own words.
  */
 import type { z, ZodType } from 'zod'
+import type { ScopeRef, ThreadRef } from '@agentconnect.md/protocol'
 import type { BindRuleConfig, Integration } from '../agents/agent-schema.js'
 import {
   DiscordConfigSchema,
@@ -72,10 +73,13 @@ export interface IntegrationCore {
   /** Channels the operator switched OFF. Normalized here so an integration
    *  assembled by hand rather than parsed (a fixture, a caller mapping a
    *  partial spec) still reads as "nothing muted" when the field is absent. */
-  mutedChannels: string[]
+  mutedChannels: ScopeRef[]
   /** Conversations that admit only an explicit address. Normalized here for the same
    *  reason `mutedChannels` is: a hand-assembled integration has no parsed default. */
-  affinityDenied: string[]
+  affinityDenied: ScopeRef[]
+  /** Threads that carry their own trigger (a Telegram forum topic), normalized for the
+   *  same reason: a hand-assembled integration reads as "none overridden" without it. */
+  overriddenThreads: ThreadRef[]
   gated: boolean
 }
 
@@ -150,6 +154,7 @@ export function integrationCore(int: Integration): IntegrationCore {
     bindRules: core?.bindRules ?? [],
     mutedChannels: core?.mutedChannels ?? [],
     affinityDenied: core?.affinityDenied ?? [],
+    overriddenThreads: core?.overriddenThreads ?? [],
     gated: core?.gated ?? false
   }
 }

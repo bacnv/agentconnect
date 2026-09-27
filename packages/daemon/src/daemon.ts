@@ -581,6 +581,7 @@ import type {
   RelayRosterEntry,
   CronReport,
   FactsMcpServer,
+  ScopeRef,
   IntegrationChannel,
   Drain,
   DrainProgress,
@@ -8381,7 +8382,8 @@ export class Daemon {
     const payload = msg.payload
     if (payload.kind === 'open-config-for-thread') {
       const routing = integrationRouting(integration)
-      const unauthorized = !conversationAdmitted(routing, payload.channelId)
+      // ponytail: thread threading lands with the topic-trigger task.
+      const unauthorized = !conversationAdmitted(routing, payload.channelId, undefined)
       const transportScope = this.transportScopeForIntegrationIds([integration.id])
       const rec = unauthorized
         ? undefined
@@ -9908,7 +9910,7 @@ export class Daemon {
   private resolveCpAgent(
     agentId: string,
     platform?: string
-  ): { integrationId: string; botUserId: string; platform: string; mutedChannels: string[] } | null {
+  ): { integrationId: string; botUserId: string; platform: string; mutedChannels: ScopeRef[] } | null {
     return resolveAgentIntegration(this.agents.get(agentId), this.botUserIds, platform)
   }
 
@@ -16477,7 +16479,8 @@ export class Daemon {
   private gatedAdmission(integrationId: string, msg: NormalizedMessage): boolean {
     const int = this.integrationConfigById(integrationId)
     if (!int) return true // unknown here — agent/integration existence is checked separately
-    return conversationAdmitted(integrationRouting(int), msg.channel)
+    // ponytail: thread threading lands with the topic-trigger task.
+    return conversationAdmitted(integrationRouting(int), msg.channel, undefined)
   }
 
   /** Observed-conversation discovery, report-only: surface every human direct

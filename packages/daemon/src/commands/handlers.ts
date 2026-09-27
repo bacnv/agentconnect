@@ -478,7 +478,8 @@ export class CommandHandlers {
     // Control commands resolve their target OUTSIDE routeRules' scope filter (latest-
     // session fallbacks), so they must repeat the admission check — a channel switched
     // Off, or an Off conversation of a gated integration, takes no commands either.
-    return conversationAdmitted(routing, msg.channel)
+    // ponytail: thread threading lands with the topic-trigger task.
+    return conversationAdmitted(routing, msg.channel, undefined)
   }
 
   /**
@@ -937,7 +938,8 @@ export class CommandHandlers {
     for (const [agentId, agent] of this.host.agents()) {
       for (const integration of agent.integrations) {
         if (integration.platform !== platform || !srcIntegrationIds.includes(integration.id)) continue
-        if (!conversationAdmitted(integrationRouting(integration), channel)) continue
+        // ponytail: thread threading lands with the topic-trigger task.
+        if (!conversationAdmitted(integrationRouting(integration), channel, undefined)) continue
         agentIds.push(agentId)
         break
       }

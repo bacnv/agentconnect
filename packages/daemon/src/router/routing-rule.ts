@@ -10,7 +10,7 @@
 import type { Agent, BindMatch, BindRuleConfig, Integration } from '../agents/agent-schema.js'
 import { configuredBotSelfId, integrationCore } from '../platforms/integration-config.js'
 import type { ActivationRule } from '@agentconnect.md/activation-policy'
-import type { RouteAssign, RouteUpdate } from '@agentconnect.md/protocol'
+import type { RouteAssign, RouteUpdate, ScopeRef, ThreadRef } from '@agentconnect.md/protocol'
 
 export type RoutingMatch = BindMatch
 
@@ -39,19 +39,37 @@ export interface RoutingRule extends ActivationRule {
 export function integrationRouting(int: Integration): {
   staticBotUserId?: string
   bindRules: BindRuleConfig[]
-  mutedChannels: string[]
-  affinityDenied: string[]
+  mutedChannels: ScopeRef[]
+  affinityDenied: ScopeRef[]
+  overriddenThreads: ThreadRef[]
   gated: boolean
 } {
-  const { bindRules, mutedChannels, affinityDenied, gated } = integrationCore(int)
-  return { staticBotUserId: configuredBotSelfId(int), bindRules, mutedChannels, affinityDenied, gated }
+  const { bindRules, mutedChannels, affinityDenied, overriddenThreads, gated } = integrationCore(int)
+  return {
+    staticBotUserId: configuredBotSelfId(int),
+    bindRules,
+    mutedChannels,
+    affinityDenied,
+    overriddenThreads,
+    gated
+  }
+}
+
+/** Does a fence ref reach this message? A channel-wide ref IS the channel's own statement,
+ *  so it stops at a thread that carries its own trigger; a thread-shaped ref always reaches
+ *  the thread it names. Mirrors the policy package's `refCovers`. */
+function refCovers(ref: ScopeRef, channel: string, thread: string | undefined, own: boolean): boolean {
+  if (typeof ref === 'string') return own && ref === channel
+  return ref.channel === channel && ref.thread === thread
 }
 
 /**
- * Is this conversation open to `int` at all? Two independent fences, both applying
- * to the channel coordinate (the enclosing configurable channel on every platform):
+ * Is this conversation open to `int` at all? Three fences, all applying to the
+ * channel coordinate (the enclosing configurable channel on every platform):
  *
- *  - Off — the operator muted this channel. Applies to every integration.
+ *  - Off — the operator muted this conversation. Applies to every integration.
+ *  - A thread override — the topic carries its own trigger, so the channel's
+ *    channel-wide fences stop at it while a thread-shaped one still reaches.
  *  - Gating (resource-visibility.md §14) — a restricted agent's integration admits
  *    ONLY conversations that carry a scoped rule, so an unknown one is refused too.
  *
@@ -60,12 +78,18 @@ export function integrationRouting(int: Integration): {
  * relay's pre-addressed hand-off), which would otherwise reach a silenced channel.
  */
 export function conversationAdmitted(
-  routing: Pick<ReturnType<typeof integrationRouting>, 'bindRules' | 'mutedChannels' | 'gated'>,
-  channel: string
+  routing: Pick<ReturnType<typeof integrationRouting>, 'bindRules' | 'mutedChannels' | 'overriddenThreads' | 'gated'>,
+  channel: string,
+  thread: string | undefined
 ): boolean {
-  const covers = (candidate: string | undefined): boolean => candidate === channel
-  if (routing.mutedChannels.some((muted) => covers(muted))) return false
-  return !routing.gated || routing.bindRules.some((rule) => covers(rule.channel))
+  const own = !routing.overriddenThreads.some((t) => refCovers(t, channel, thread, true))
+  if (routing.mutedChannels.some((muted) => refCovers(muted, channel, thread, own))) return false
+  if (!routing.gated) return true
+  // Gating is fail-closed whatever the override: the channel's grant is not the topic's, and a
+  // topic the operator opened carries its own rule (thread-shaped) which this admits.
+  return routing.bindRules.some(
+    (rule) => rule.channel === channel && (rule.thread === undefined || rule.thread === thread)
+  )
 }
 
 /** Stored CP-layer rule — integration resolved lazily at merge time. */
@@ -91,8 +115,9 @@ export function resolveAgentIntegration(
   integrationId: string
   botUserId: string
   platform: string
-  mutedChannels: string[]
-  affinityDenied: string[]
+  mutedChannels: ScopeRef[]
+  affinityDenied: ScopeRef[]
+  overriddenThreads: ThreadRef[]
 } | null {
   // Prefer an integration on the requested platform — an agent may bridge several (e.g.
   // Slack + Telegram). Delivering a reply/wake into a session on platform X must use X's
@@ -107,13 +132,14 @@ export function resolveAgentIntegration(
   const int =
     (platform ? agent?.integrations.find((i) => i.platform === platform) : undefined) ?? agent?.integrations[0]
   if (!int) return null
-  const { staticBotUserId, mutedChannels, affinityDenied } = integrationRouting(int)
+  const { staticBotUserId, mutedChannels, affinityDenied, overriddenThreads } = integrationRouting(int)
   return {
     integrationId: int.id,
     botUserId: botUserIds[int.id] ?? staticBotUserId ?? '',
     platform: int.platform,
     mutedChannels,
-    affinityDenied
+    affinityDenied,
+    overriddenThreads
   }
 }
 
@@ -122,7 +148,7 @@ export function resolveAgentIntegration(
 export function rulesFromAgent(agent: Agent, botUserIds: Record<string, string>): RoutingRule[] {
   const out: RoutingRule[] = []
   for (const int of agent.integrations) {
-    const { staticBotUserId, bindRules, mutedChannels, affinityDenied } = integrationRouting(int)
+    const { staticBotUserId, bindRules, mutedChannels, affinityDenied, overriddenThreads } = integrationRouting(int)
     const botUserId = botUserIds[int.id] ?? staticBotUserId ?? ''
     for (const br of bindRules) {
       out.push({
@@ -133,6 +159,7 @@ export function rulesFromAgent(agent: Agent, botUserIds: Record<string, string>)
         match: br.match,
         mutedChannels,
         affinityDenied,
+        overriddenThreads,
         source: 'config',
         platform: int.platform
       })
@@ -148,8 +175,9 @@ export function resolveCpRule(
     integrationId: string
     botUserId: string
     platform: string
-    mutedChannels?: string[]
-    affinityDenied?: string[]
+    mutedChannels?: ScopeRef[]
+    affinityDenied?: ScopeRef[]
+    overriddenThreads?: ThreadRef[]
   } | null
 ): RoutingRule | null {
   const r = resolve(cp.agentId)
@@ -164,6 +192,7 @@ export function resolveCpRule(
     // switched off; it carries its integration's fence for the same reason a local rule does.
     ...(r.mutedChannels ? { mutedChannels: r.mutedChannels } : {}),
     ...(r.affinityDenied ? { affinityDenied: r.affinityDenied } : {}),
+    ...(r.overriddenThreads ? { overriddenThreads: r.overriddenThreads } : {}),
     source: 'cp',
     platform: r.platform,
     ...(cp.epoch !== undefined ? { epoch: cp.epoch } : {})
