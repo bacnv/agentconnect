@@ -1746,6 +1746,10 @@ export class Daemon {
       waitForConnectionUses: (conn) => this.waitForConnectionUses(conn),
       observeTelegramChat: (chat, integrationIds) =>
         this.observedChannelsSync.observeTelegramChat(chat, integrationIds),
+      // ponytail: dropped until the sync engine records topics — wire it to
+      // `observedChannelsSync.observeForumTopic` when that method exists.
+      observeForumTopic: async () => {},
+
       observePlatformChat: (platform, chat, integrationIds) =>
         this.observedChannelsSync.observePlatformChat(platform, chat, integrationIds),
       observePlatformChats: (platform, chats, integrationIds) =>
