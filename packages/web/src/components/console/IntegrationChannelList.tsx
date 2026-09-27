@@ -12,6 +12,35 @@ import { useOwnerChangeGuard } from '@/components/console/OwnerChangeGuard'
 import type { AgentIcon } from '@/lib/agent-icon'
 import { chatPlatformName } from '@/lib/platform-labels'
 
+/** The room vocabulary, in host order, shared by the conversation control and every topic
+ *  under it — one list, or the two drift. A channel takes the full four-way choice for EVERY
+ *  agent, gated or not: an operator who wants the bot silent here but still in the room on the
+ *  platform has nowhere else to say so. */
+function roomOptionsFor(
+  channel: IntegrationChannelRow,
+  platform?: string
+): TriggerOption<IntegrationChannelRow['trigger']>[] {
+  const here = `this ${rowNoun(channel.kind, platform)}`
+  return [
+    { value: 'off', label: 'off', hint: `The agent doesn't respond in ${here}, even when @-mentioned.` },
+    { value: 'any', label: 'any message', hint: `The agent responds to every message in ${here}.` },
+    {
+      value: 'mention',
+      label: '@-mention',
+      hint: "The agent responds when @-mentioned. Follow-ups in a thread it has joined don't need another mention."
+    },
+    {
+      value: 'mention_topic',
+      label: '@-mention + reply',
+      hint: `The agent responds only when @-mentioned or when someone replies to one of its own messages in ${here}.`
+    }
+  ]
+}
+
+/** Absent ⇒ the three platform-agnostic values. The reply-aware fourth is opt-in per platform:
+ *  its reply half needs a per-message author lookup only the daemon's transcript can answer. */
+const allowedRoomTriggers = (platform?: string) => channelListSemantics(platform).triggers ?? ['off', 'mention', 'any']
+
 /** The per-conversation trigger dropdown: channels take "off" / "any message" / "@-mention" (the
  *  default, so it sits last), DM rows are binary off/on, and shared bots project that state across
  *  every membership row. Every choice carries hover copy. */
@@ -34,37 +63,15 @@ function TriggerToggle({
     setSaving(true)
     Promise.resolve(onChange(trigger)).finally(() => setSaving(false))
   }
-  // A DM conversation activates on any message once enabled — binary off/on. A
-  // channel takes the full three-way choice for EVERY agent, gated or not: an operator
-  // who wants the bot silent here but still in the channel on the platform has nowhere
-  // else to say so. A GROUP DM takes the channel's choice, not the DM's: several people
-  // share it, so "every message" must stay opt-in.
-  const here = `this ${rowNoun(channel.kind, platform)}`
-  // Absent ⇒ the three platform-agnostic values. The reply-aware fourth is opt-in per
-  // platform: its reply half needs a per-message author lookup only the daemon's
-  // transcript can answer.
-  const allowed = channelListSemantics(platform).triggers ?? ['off', 'mention', 'any']
-  const roomOptions: TriggerOption<IntegrationChannelRow['trigger']>[] = [
-    { value: 'off', label: 'off', hint: `The agent doesn't respond in ${here}, even when @-mentioned.` },
-    { value: 'any', label: 'any message', hint: `The agent responds to every message in ${here}.` },
-    {
-      value: 'mention',
-      label: '@-mention',
-      hint: "The agent responds when @-mentioned. Follow-ups in a thread it has joined don't need another mention."
-    },
-    {
-      value: 'mention_topic',
-      label: '@-mention + reply',
-      hint: `The agent responds only when @-mentioned or when someone replies to one of its own messages in ${here}.`
-    }
-  ]
+  // A DM conversation activates on any message once enabled — binary off/on. A GROUP DM takes
+  // the channel's choice, not the DM's: several people share it, so "every message" stays opt-in.
   const options: TriggerOption<IntegrationChannelRow['trigger']>[] =
     channel.kind === 'im'
       ? [
           { value: 'off', label: 'off', hint: "The agent doesn't respond in this conversation." },
           { value: 'any', label: 'on', hint: 'The agent responds to messages in this conversation.' }
         ]
-      : roomOptions.filter((o) => allowed.includes(o.value))
+      : roomOptionsFor(channel, platform).filter((o) => allowedRoomTriggers(platform).includes(o.value))
   return (
     <TriggerSelect
       options={options}
@@ -72,6 +79,51 @@ function TriggerToggle({
       onChange={pick}
       ariaLabel={`Trigger for ${rowLabel(channel)}`}
       hint="Trigger — when the agent responds here"
+      disabled={disabled}
+      busy={saving}
+      className="max-desktop:w-full"
+    />
+  )
+}
+
+/** A topic's own trigger control: the conversation's vocabulary plus a display-only
+ *  `'inherit'`, whose wire value is `null` — the same value clearing an override writes back. */
+function ThreadTriggerToggle({
+  channel,
+  thread,
+  platform,
+  disabled,
+  onChange
+}: {
+  channel: IntegrationChannelRow
+  thread: NonNullable<IntegrationChannelRow['threads']>[number]
+  platform?: string
+  disabled: boolean
+  /** `null` = follow the conversation's trigger, which is what clearing a topic's override writes. */
+  onChange: (trigger: IntegrationChannelRow['trigger'] | null) => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const value: 'inherit' | IntegrationChannelRow['trigger'] = thread.trigger ?? 'inherit'
+  const pick = (next: 'inherit' | IntegrationChannelRow['trigger']) => {
+    if (disabled || saving || next === value) return
+    setSaving(true)
+    Promise.resolve(onChange(next === 'inherit' ? null : next)).finally(() => setSaving(false))
+  }
+  const allowed = channelListSemantics(platform).threadTriggers ?? []
+  // "Follow group" is offered whether or not the row holds an override: the control reads the
+  // row's state instead of appearing and disappearing, and re-picking it is the no-op above.
+  const options: TriggerOption<'inherit' | IntegrationChannelRow['trigger']>[] = [
+    { value: 'inherit', label: 'Follow group', hint: `Uses the trigger set for ${rowLabel(channel)}.` },
+    ...roomOptionsFor(channel, platform).filter((o) => allowed.includes(o.value))
+  ]
+  const name = thread.name ?? `Topic ${thread.threadId}`
+  return (
+    <TriggerSelect
+      options={options}
+      value={value}
+      onChange={pick}
+      ariaLabel={`Trigger for ${name}`}
+      hint="Topic trigger — overrides the group's"
       disabled={disabled}
       busy={saving}
       className="max-desktop:w-full"
@@ -563,8 +615,16 @@ export function IntegrationChannelList({
   /** Horizontal row padding, to line up with the host card (18 list / 14 detail). */
   padX?: number
 }) {
-  const { setChannelTrigger, setChannelAgent, forgetChannel, leaveConversation, bots, agents, integrations } =
-    useConsoleData()
+  const {
+    setChannelTrigger,
+    setThreadTrigger,
+    setChannelAgent,
+    forgetChannel,
+    leaveConversation,
+    bots,
+    agents,
+    integrations
+  } = useConsoleData()
   const ownerGuard = useOwnerChangeGuard()
   // A derived roster is the platform's own list — nothing is observed into it, and nothing is dropped from here.
   const derivedRoster = channelListSemantics(platform).roster === 'derived'
@@ -607,6 +667,12 @@ export function IntegrationChannelList({
     const explicit = c.agentId ?? owners?.get(c.channelId)
     return (explicit ? members.find((m) => m.id === explicit) : undefined) ?? members[0]
   }
+  // Keyed by conversation, on the LIST rather than inside `row`: the list re-renders on every
+  // mutation, so a per-row state would collapse the disclosure the operator just opened.
+  const [openThreads, setOpenThreads] = useState<Record<string, boolean>>({})
+  // Only where the platform declares topic support, so a stray `threads` array on a platform
+  // that never meant them renders nothing rather than a control it has no route for.
+  const topics = (c: IntegrationChannelRow) => (channelListSemantics(platform).threadTriggers ? (c.threads ?? []) : [])
   const channelRows = channels.filter((c) => !isDirectConversation(c.kind))
   // Direct rows keep their compact On/Off trigger control; shared bots project it
   // bot-wide just like channels.
@@ -695,6 +761,23 @@ export function IntegrationChannelList({
             disabled={!integrationId}
             onChange={(trigger) => setChannelTrigger(integrationId!, c.channelId, trigger)}
           />
+          {/* Shown on every row that HAS topics, an `off` row included: a topic carrying its own
+              trigger acts regardless of the group's, so off no longer means the group is silent. */}
+          {topics(c).length > 0 && (
+            <button
+              type="button"
+              aria-expanded={openThreads[c.channelId] === true}
+              aria-label={`Topics of ${rowLabel(c)}`}
+              onClick={() => setOpenThreads((v) => ({ ...v, [c.channelId]: v[c.channelId] !== true }))}
+              className="iconbtn h-6 w-6 flex-none"
+            >
+              <Icon
+                name={openThreads[c.channelId] === true ? 'chevron-down' : 'chevron-right'}
+                size={13}
+                color="var(--text-tertiary)"
+              />
+            </button>
+          )}
           {/* Demo rows carry no button rather than an inert one, and a derived roster none at all — the
               platform owns the list. Which of the two callbacks a row spends is `rowMenuAction`'s call. */}
           {integrationId && !derivedRoster && (
@@ -736,7 +819,30 @@ export function IntegrationChannelList({
       {grouped.map((g) => (
         <Fragment key={g.key || '(unscoped)'}>
           {g.label && groupHeader(g.label, padX, spaceAction(g))}
-          {g.rows.map(row)}
+          {g.rows.map((c) => (
+            <Fragment key={c.channelId}>
+              {row(c)}
+              {openThreads[c.channelId] === true &&
+                topics(c).map((t) => (
+                  <div
+                    key={t.threadId}
+                    className="flex flex-wrap items-center gap-x-[10px] gap-y-2 border-t border-(--border-subtle) bg-(--surface-sunken)"
+                    style={{ padding: `8px ${padX + 18}px` }}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-(--text-secondary)">
+                      {t.name ?? `Topic ${t.threadId}`}
+                    </span>
+                    <ThreadTriggerToggle
+                      channel={c}
+                      thread={t}
+                      platform={platform}
+                      disabled={!integrationId}
+                      onChange={(trigger) => setThreadTrigger(integrationId!, c.channelId, t.threadId, trigger)}
+                    />
+                  </div>
+                ))}
+            </Fragment>
+          ))}
         </Fragment>
       ))}
       {dmRows.length > 0 && groupHeader('Direct messages', padX)}
