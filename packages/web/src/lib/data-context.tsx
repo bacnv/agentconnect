@@ -37,6 +37,7 @@ import {
   finalizeSlackInstall as apiFinalizeSlackInstall,
   deleteIntegration as apiDeleteIntegration,
   updateIntegrationChannel as apiUpdateIntegrationChannel,
+  updateIntegrationChannelThread as apiUpdateIntegrationChannelThread,
   forgetIntegrationChannel as apiForgetIntegrationChannel,
   leaveIntegrationConversation as apiLeaveIntegrationConversation,
   updateBot as apiUpdateBot,
@@ -252,6 +253,13 @@ interface ConsoleData {
   deleteHook: (id: string, agentId?: string | null) => Promise<void>
   /** Per-conversation trigger choice (PATCH), applied to the local row on success. */
   setChannelTrigger: (integrationId: string, channelId: string, trigger: ChannelTrigger) => Promise<void>
+  /** Per-topic trigger choice (PATCH). `null` clears the override, back to the conversation's. */
+  setThreadTrigger: (
+    integrationId: string,
+    channelId: string,
+    threadId: string,
+    trigger: ChannelTrigger | null
+  ) => Promise<void>
   /** Per-conversation default agent for a shared bot (PATCH), applied locally. */
   setChannelAgent: (integrationId: string, channelId: string, agentId: string) => Promise<void>
   /** Forget a conversation row without touching the platform. */
@@ -1440,6 +1448,40 @@ export function ConsoleDataProvider({ children }: { children: ReactNode }) {
     [mutateIntegrations, realBots]
   )
 
+  // Set or clear one topic's trigger, with the same bot-wide projection the conversation
+  // toggle uses so a shared bot cannot disagree with itself between installs.
+  const setThreadTrigger = useCallback(
+    async (integrationId: string, channelId: string, threadId: string, trigger: ChannelTrigger | null) => {
+      await apiUpdateIntegrationChannelThread(integrationId, channelId, threadId, { trigger })
+      settleInBackground(
+        mutateIntegrations(
+          (rows) => {
+            const source = rows?.find((row) => row.id === integrationId)
+            if (!rows || !source) return rows
+            const botWide = realBots.some((bot) => bot.id === source.botId && bot.shareable)
+            return rows.map((row) =>
+              (botWide ? row.botId === source.botId : row.id === integrationId)
+                ? {
+                    ...row,
+                    channels: row.channels.map((channel) =>
+                      channel.channelId === channelId
+                        ? {
+                            ...channel,
+                            threads: channel.threads?.map((t) => (t.threadId === threadId ? { ...t, trigger } : t))
+                          }
+                        : channel
+                    )
+                  }
+                : row
+            )
+          },
+          { revalidate: false }
+        )
+      )
+    },
+    [mutateIntegrations, realBots]
+  )
+
   /**
    * Drop a conversation from the cache. Both channel actions end the same way — the
    * row is gone — so they share one projection, applied bot-wide for a channel of a
@@ -1700,6 +1742,7 @@ export function ConsoleDataProvider({ children }: { children: ReactNode }) {
       deleteHook,
       deleteBot,
       setChannelTrigger,
+      setThreadTrigger,
       forgetChannel,
       leaveConversation,
       setChannelAgent,
@@ -1783,6 +1826,7 @@ export function ConsoleDataProvider({ children }: { children: ReactNode }) {
       deleteHook,
       deleteBot,
       setChannelTrigger,
+      setThreadTrigger,
       setChannelAgent,
       setBotShareable,
       saveCron,
