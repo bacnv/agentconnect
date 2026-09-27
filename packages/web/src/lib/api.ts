@@ -879,6 +879,14 @@ export interface SlackConfigInput {
 // an explicit address — an @-mention or a reply to the agent's own message.
 export type ChannelTrigger = 'off' | 'mention' | 'mention_topic' | 'any'
 
+/** One configurable thread of a conversation — a Telegram forum topic. `trigger: null` =
+ *  inherit the conversation's, which is also what clearing an override returns it to. */
+export interface IntegrationChannelThreadDto {
+  threadId: string
+  name: string | null
+  trigger: ChannelTrigger | null
+}
+
 // One conversation the integration's bot is in (daemon-reported) + its trigger
 // choice. kind 'im' rows are DM conversations and 'mpim' rows are Slack group DMs;
 // both are observed rather than enumerable and appear for every agent visibility.
@@ -895,6 +903,7 @@ export interface IntegrationChannelDto {
   kind: 'channel' | 'im' | 'mpim'
   trigger: ChannelTrigger
   agentId: string | null // effective shared-conversation owner; null before convergence / when not applicable
+  threads?: IntegrationChannelThreadDto[] // the conversation's own topics, where the platform has them
 }
 
 // `/integrations` list/create row — control-plane metadata only, NEVER tokens.
@@ -4356,6 +4365,23 @@ export async function updateIntegrationChannel(
 ): Promise<IntegrationChannelDto> {
   return apiPatch<IntegrationChannelDto>(
     `${orgBase(orgId)}/integrations/${encodeURIComponent(integrationId)}/channels/${encodeURIComponent(channelId)}`,
+    patch
+  )
+}
+
+// Per-topic trigger choice (`PATCH /integrations/:id/channels/:channelId/threads/:threadId`).
+// `trigger: null` clears the override, returning the topic to its group's trigger.
+export async function updateIntegrationChannelThread(
+  integrationId: string,
+  channelId: string,
+  threadId: string,
+  patch: { trigger: ChannelTrigger | null },
+  orgId?: string
+): Promise<IntegrationChannelThreadDto> {
+  return apiPatch<IntegrationChannelThreadDto>(
+    `${orgBase(orgId)}/integrations/${encodeURIComponent(integrationId)}/channels/${encodeURIComponent(
+      channelId
+    )}/threads/${encodeURIComponent(threadId)}`,
     patch
   )
 }

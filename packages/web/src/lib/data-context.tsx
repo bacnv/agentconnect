@@ -352,7 +352,8 @@ function integrationRowFromDto(
       ...(c.url ? { url: c.url } : {}),
       kind: c.kind,
       trigger: c.trigger,
-      agentId: c.agentId
+      agentId: c.agentId,
+      ...(c.threads ? { threads: c.threads } : {})
     }))
   }
 }
