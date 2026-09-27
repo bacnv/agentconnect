@@ -330,7 +330,8 @@ describe('integration/channels EVT → integration_channel convergence', () => {
         isPrivate: false,
         kind: 'channel',
         trigger: 'mention',
-        agentId: null
+        agentId: null,
+        threads: []
       },
       {
         channelId: 'C2',
@@ -344,7 +345,8 @@ describe('integration/channels EVT → integration_channel convergence', () => {
         isPrivate: true,
         kind: 'channel',
         trigger: 'mention',
-        agentId: null
+        agentId: null,
+        threads: []
       }
     ])
   })
@@ -1448,6 +1450,122 @@ describe('integration/channels EVT → integration_channel convergence', () => {
   })
 })
 
+describe('PATCH /integrations/:id/channels/:channelId/threads/:threadId', () => {
+  const patchThread = async (integrationId: string, body: Record<string, unknown>, threadId = '7') =>
+    await running!.app.inject({
+      method: 'PATCH',
+      url: `${ORG}/integrations/${integrationId}/channels/-100/threads/${threadId}`,
+      payload: body
+    })
+
+  it('sets a topic trigger, clears it back to inherit, and 404s an unknown topic', async () => {
+    await seedDaemon(prisma, DAEMON)
+    running = buildHttpApp(prisma, undefined, undefined, new SpyControl() as unknown as ControlSender)
+    const id = await installTelegram(running)
+    await report(
+      DAEMON,
+      id,
+      [{ id: '-100', name: 'General', threads: [{ id: '7', name: 'Deploys' }] }],
+      undefined,
+      undefined,
+      false
+    )
+
+    const set = await patchThread(id, { trigger: 'off' })
+    expect(set.statusCode).toBe(200)
+    expect(set.json()).toEqual({ threadId: '7', name: 'Deploys', trigger: 'off' })
+
+    // `null` is the removal path — a topic row is never deleted, it goes back to inheriting.
+    const cleared = await patchThread(id, { trigger: null })
+    expect(cleared.statusCode).toBe(200)
+    expect(cleared.json()).toEqual({ threadId: '7', name: 'Deploys', trigger: null })
+
+    const missing = await patchThread(id, { trigger: 'off' }, '999')
+    expect(missing.statusCode).toBe(404)
+  })
+
+  it('pushes the recomputed spec to the owning daemon, so the trigger is live without a reconnect', async () => {
+    await seedDaemon(prisma, DAEMON)
+    const spy = new SpyControl()
+    running = buildHttpApp(prisma, undefined, undefined, spy as unknown as ControlSender)
+    const id = await installTelegram(running)
+    await report(
+      DAEMON,
+      id,
+      [{ id: '-100', name: 'General', threads: [{ id: '7', name: 'Deploys' }] }],
+      undefined,
+      undefined,
+      false
+    )
+    spy.upserts.length = 0
+
+    expect((await patchThread(id, { trigger: 'any' })).statusCode).toBe(200)
+
+    const pushed = spy.upserts.at(-1)!.u
+    expect(pushed.integrationId).toBe(id)
+    expect(pushed.core!.overriddenThreads).toEqual([{ channel: '-100', thread: '7' }])
+    expect(pushed.core!.bindRules).toContainEqual({ channel: '-100', thread: '7', match: { kind: 'auto' } })
+  })
+
+  it('404s the topic of an integration whose agent the caller cannot see', async () => {
+    const users = new PgUserRepo(prisma)
+    const subject = `thread-auth-${randomUUID()}`
+    const email = `${subject}@acme.dev`
+    const { userId } = await users.provisionOidcUser({ oidcSubject: subject, email, emailVerified: true })
+    await users.addMemberByEmail(DEFAULT_ORG_ID, email, 'collaborator')
+
+    await seedDaemon(prisma, DAEMON)
+    const agentId = randomUUID()
+    await seedAgent(prisma, agentId, {
+      daemonId: DAEMON,
+      visibility: 'restricted',
+      sharedWith: [DEFAULT_OWNER_ID],
+      createdByUserId: DEFAULT_OWNER_ID
+    })
+    // Installed as the seeded owner, who IS in the agent's audience — the fixture has to be
+    // creatable before the member's own view of it can be probed.
+    running = buildHttpApp(prisma, undefined, undefined, new SpyControl() as unknown as ControlSender)
+    const created = await running.app.inject({
+      method: 'POST',
+      url: `${ORG}/integrations`,
+      payload: { name: 'acme-tg', platform: 'telegram', agentId, telegram: { botToken: '123456:AAE-xyz' } }
+    })
+    expect(created.statusCode).toBe(201)
+    const id = (created.json() as { id: string }).id
+    await report(DAEMON, id, [{ id: '-100', threads: [{ id: '7' }] }], undefined, undefined, false)
+
+    // The member is not in the agent's audience, so the parent agent — and the topic with it —
+    // is invisible rather than merely uneditable: the same 404 the channel route answers.
+    await running.close()
+    running = buildHttpApp(prisma, { DEFAULT_OWNER_ID: userId })
+    const denied = await patchThread(id, { trigger: 'off' })
+    expect(denied.statusCode).toBe(404)
+    expect(
+      await prisma.integrationChannelThread.findUnique({
+        where: { integrationId_channelId_threadId: { integrationId: id, channelId: '-100', threadId: '7' } }
+      })
+    ).toMatchObject({ trigger: null })
+  })
+
+  it('carries the topics on the integration DTO so the console can render them', async () => {
+    await seedDaemon(prisma, DAEMON)
+    running = buildHttpApp(prisma, undefined, undefined, new SpyControl() as unknown as ControlSender)
+    const id = await installTelegram(running)
+    await report(
+      DAEMON,
+      id,
+      [{ id: '-100', name: 'General', threads: [{ id: '7', name: 'Deploys' }] }],
+      undefined,
+      undefined,
+      false
+    )
+
+    const listed = await running.app.inject({ method: 'GET', url: `${ORG}/integrations` })
+    const dto = (listed.json() as Array<{ id: string; channels: Array<{ threads: unknown }> }>).find((i) => i.id === id)
+    expect(dto!.channels[0]!.threads).toEqual([{ threadId: '7', name: 'Deploys', trigger: null }])
+  })
+})
+
 describe('PATCH /integrations/:id/channels/:channelId — a Linear team row', () => {
   const patch = async (integrationId: string, body: Record<string, unknown>, channelId = 'team_eng') =>
     await running!.app.inject({
@@ -1847,7 +1965,8 @@ describe('PATCH /integrations/:id/channels/:channelId', () => {
       isPrivate: false,
       kind: 'channel',
       trigger: 'any',
-      agentId: null
+      agentId: null,
+      threads: []
     })
 
     // The daemon got the recomputed rule set: defaults + ONE auto rule for C2.
