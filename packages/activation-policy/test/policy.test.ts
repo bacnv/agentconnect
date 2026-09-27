@@ -228,3 +228,80 @@ describe('affinityDenied (the explicit-address fence)', () => {
     expect(conversationAdmitsAgent(rules, 'a1', 'C1')).toBe(true)
   })
 })
+
+// A thread that carries its own trigger ignores the enclosing channel: its own rules AND
+// its channel's fences. Both effects live in the one scope predicate, so every rung inherits them.
+describe('overriddenThreads (a topic that carries its own trigger)', () => {
+  const tgMsg = (over: Partial<ActivationMessageFacts> = {}) =>
+    msg({ platform: 'telegram', channel: '-100', thread: '7', ...over })
+  const autoRule = () => rule({ agentId: 'a1', scope: { channel: '-100' }, match: { kind: 'auto' } })
+  const own = [{ channel: '-100', thread: '7' }]
+
+  it("a group's auto rule does not fire in an overridden thread", () => {
+    expect(routeRules(tgMsg(), [autoRule()], () => null)).toMatchObject({ agentId: 'a1' })
+    expect(routeRules(tgMsg(), [{ ...autoRule(), overriddenThreads: own }], () => null)).toBeNull()
+  })
+
+  it('an overridden thread still answers an @-mention — the unscoped default is never suppressed', () => {
+    const rules = [rule({ agentId: 'a1', overriddenThreads: own }), autoRule()]
+    expect(routeRules(tgMsg({ mentionedBots: ['U1'], text: '<@U1>' }), rules, () => null)).toMatchObject({
+      agentId: 'a1',
+      via: 'mention'
+    })
+  })
+
+  it("a thread-scoped rule of its own wins over the group's channel-scoped one", () => {
+    const rules = [
+      { ...autoRule(), overriddenThreads: own },
+      {
+        ...rule({ agentId: 'a2', scope: { channel: '-100', thread: '7' }, match: { kind: 'auto' } }),
+        overriddenThreads: own
+      }
+    ]
+    expect(routeRules(tgMsg(), rules, () => null)).toMatchObject({ agentId: 'a2', via: 'auto' })
+  })
+
+  it('a channel-wide mute does not silence an overridden thread; a thread-shaped one does', () => {
+    const scoped = rule({ agentId: 'a1', scope: { channel: '-100', thread: '7' }, match: { kind: 'auto' } })
+    const channelWide = [{ ...scoped, mutedChannels: ['-100'], overriddenThreads: own }]
+    expect(routeRules(tgMsg(), channelWide, () => null)).toMatchObject({ agentId: 'a1' })
+    const threadShaped = [{ ...scoped, mutedChannels: own, overriddenThreads: own }]
+    expect(routeRules(tgMsg(), threadShaped, () => null)).toBeNull()
+  })
+
+  it('does not revive a channel-scoped rule through the affinity rung', () => {
+    expect(routeRules(tgMsg(), [rule({ agentId: 'a1', overriddenThreads: own })], () => 'a1')).toMatchObject({
+      agentId: 'a1',
+      via: 'thread'
+    })
+    const silent = [rule({ agentId: 'a1', scope: { channel: '-100' }, overriddenThreads: own })]
+    expect(routeRules(tgMsg(), silent, () => 'a1')).toBeNull()
+  })
+
+  it('an unrelated thread ref leaves the channel reachable', () => {
+    const rules = [{ ...autoRule(), overriddenThreads: [{ channel: '-100', thread: '999' }] }]
+    expect(routeRules(tgMsg(), rules, () => null)).toMatchObject({ agentId: 'a1' })
+  })
+
+  it('a channel-wide affinityDenied does not reach an overridden thread, so a mention topic re-admits replies', () => {
+    const topic = { ...rule({ agentId: 'a1' }), affinityDenied: ['-100'], overriddenThreads: own }
+    expect(routeRules(tgMsg(), [topic], () => 'a1')).toMatchObject({ agentId: 'a1', via: 'thread' })
+  })
+
+  it('gates participants by the thread own fence', () => {
+    const rules = [autoRule(), { ...rule({ agentId: 'a2', scope: { channel: '-100' } }), overriddenThreads: own }]
+    expect(participantAgents(tgMsg(), rules, ['a1', 'a2'])).toEqual(['a1'])
+  })
+})
+
+describe('conversationAdmitsAgent with a thread', () => {
+  const own = [{ channel: 'C1', thread: 'T1' }]
+  const rules = [
+    rule({ agentId: 'a1', mutedChannels: ['C1'], overriddenThreads: own }),
+    rule({ agentId: 'a2', scope: { channel: 'C1' }, overriddenThreads: own })
+  ]
+  it('a channel-wide mute does not reach an overridden thread', () => {
+    expect(conversationAdmitsAgent(rules, 'a1', 'C1')).toBe(false)
+    expect(conversationAdmitsAgent(rules, 'a1', 'C1', 'T1')).toBe(true)
+  })
+})

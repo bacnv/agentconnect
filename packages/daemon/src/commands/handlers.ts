@@ -392,7 +392,7 @@ export class CommandHandlers {
         // conversation fenced to explicit addresses, "the channel's latest session" is
         // exactly the continuity the fence exists to refuse. Not in commandSenderAllowed,
         // which also gates ladder-resolved targets — those ARE addresses.
-        if (!affinityAdmits(integrationRouting(integration).affinityDenied, agentId, msg)) continue
+        if (!affinityAdmits(integrationRouting(integration), agentId, msg)) continue
         const latest = await this.host.store().latestSessionForTransport(agentId, msg.channel, transportScope, thread)
         if (latest) candidates.push({ agentId, integrationId: integration.id, updatedAt: latest.updatedAt })
       }
