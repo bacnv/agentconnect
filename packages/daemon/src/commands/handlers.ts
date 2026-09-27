@@ -478,8 +478,8 @@ export class CommandHandlers {
     // Control commands resolve their target OUTSIDE routeRules' scope filter (latest-
     // session fallbacks), so they must repeat the admission check — a channel switched
     // Off, or an Off conversation of a gated integration, takes no commands either.
-    // ponytail: thread threading lands with the topic-trigger task.
-    return conversationAdmitted(routing, msg.channel, undefined)
+    // A topic-level Off is the new instance of exactly that.
+    return conversationAdmitted(routing, msg.channel, msg.thread)
   }
 
   /**
@@ -881,7 +881,8 @@ export class CommandHandlers {
     const session = await this.commandSessionForLatest(
       cb.channel,
       srcIntegrationIds,
-      this.host.transportScopeForIntegrationIds(srcIntegrationIds)
+      this.host.transportScopeForIntegrationIds(srcIntegrationIds),
+      cb.topicId
     )
     if (!session) {
       void conn.answerCallback(cb.id, 'No active session here.')
@@ -933,13 +934,17 @@ export class CommandHandlers {
 
   /** The agents whose own-platform integrations admit this conversation — one entry each,
    *  whichever of its integrations qualified. */
-  private admittedAgentIds(platform: string, channel: string, srcIntegrationIds: readonly string[]): string[] {
+  private admittedAgentIds(
+    platform: string,
+    channel: string,
+    srcIntegrationIds: readonly string[],
+    thread: string | undefined
+  ): string[] {
     const agentIds: string[] = []
     for (const [agentId, agent] of this.host.agents()) {
       for (const integration of agent.integrations) {
         if (integration.platform !== platform || !srcIntegrationIds.includes(integration.id)) continue
-        // ponytail: thread threading lands with the topic-trigger task.
-        if (!conversationAdmitted(integrationRouting(integration), channel, undefined)) continue
+        if (!conversationAdmitted(integrationRouting(integration), channel, thread)) continue
         agentIds.push(agentId)
         break
       }
@@ -956,7 +961,7 @@ export class CommandHandlers {
     thread?: string
   ): Promise<SessionRecord[]> {
     const candidates: SessionRecord[] = []
-    for (const agentId of this.admittedAgentIds(platform, channel, srcIntegrationIds)) {
+    for (const agentId of this.admittedAgentIds(platform, channel, srcIntegrationIds, thread)) {
       const session = await this.host.store().latestSessionForTransport(agentId, channel, transportScope, thread)
       if (session) candidates.push(session)
     }
@@ -968,9 +973,10 @@ export class CommandHandlers {
   async commandSessionForLatest(
     channel: string,
     srcIntegrationIds: readonly string[],
-    transportScope?: string
+    transportScope?: string,
+    thread?: string
   ): Promise<{ agentId: string; key: string; acpSessionId?: string } | null> {
-    const latest = await this.latestAdmittedSession('telegram', channel, srcIntegrationIds, transportScope)
+    const latest = await this.latestAdmittedSession('telegram', channel, srcIntegrationIds, transportScope, thread)
     return latest ? { agentId: latest.agentId, key: latest.key, acpSessionId: latest.acpSessionId ?? undefined } : null
   }
 
@@ -1004,7 +1010,7 @@ export class CommandHandlers {
       shortcut.thread
     )
     const keys = sessions.map((s) => s.key)
-    for (const agentId of this.admittedAgentIds('slack', shortcut.channel, srcIntegrationIds)) {
+    for (const agentId of this.admittedAgentIds('slack', shortcut.channel, srcIntegrationIds, shortcut.thread)) {
       const cold = sessionKey('slack', shortcut.channel, shortcut.thread, agentId, transportScope)
       if (!keys.includes(cold) && this.gateActiveFor(cold)) keys.push(cold)
     }

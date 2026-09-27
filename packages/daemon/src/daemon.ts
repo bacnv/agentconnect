@@ -582,6 +582,7 @@ import type {
   CronReport,
   FactsMcpServer,
   ScopeRef,
+  ThreadRef,
   IntegrationChannel,
   Drain,
   DrainProgress,
@@ -6992,7 +6993,7 @@ export class Daemon {
   }
 
   private agentConversationAdmits(agentId: string, msg: NormalizedMessage): boolean {
-    return conversationAdmitsAgent(this.mergedRules(), agentId, msg.channel)
+    return conversationAdmitsAgent(this.mergedRules(), agentId, msg.channel, msg.thread)
   }
 
   /**
@@ -8382,8 +8383,7 @@ export class Daemon {
     const payload = msg.payload
     if (payload.kind === 'open-config-for-thread') {
       const routing = integrationRouting(integration)
-      // ponytail: thread threading lands with the topic-trigger task.
-      const unauthorized = !conversationAdmitted(routing, payload.channelId, undefined)
+      const unauthorized = !conversationAdmitted(routing, payload.channelId, payload.threadTs)
       const transportScope = this.transportScopeForIntegrationIds([integration.id])
       const rec = unauthorized
         ? undefined
@@ -9910,7 +9910,13 @@ export class Daemon {
   private resolveCpAgent(
     agentId: string,
     platform?: string
-  ): { integrationId: string; botUserId: string; platform: string; mutedChannels: ScopeRef[] } | null {
+  ): {
+    integrationId: string
+    botUserId: string
+    platform: string
+    mutedChannels: ScopeRef[]
+    overriddenThreads: ThreadRef[]
+  } | null {
     return resolveAgentIntegration(this.agents.get(agentId), this.botUserIds, platform)
   }
 
@@ -16479,8 +16485,7 @@ export class Daemon {
   private gatedAdmission(integrationId: string, msg: NormalizedMessage): boolean {
     const int = this.integrationConfigById(integrationId)
     if (!int) return true // unknown here — agent/integration existence is checked separately
-    // ponytail: thread threading lands with the topic-trigger task.
-    return conversationAdmitted(integrationRouting(int), msg.channel, undefined)
+    return conversationAdmitted(integrationRouting(int), msg.channel, msg.thread)
   }
 
   /** Observed-conversation discovery, report-only: surface every human direct
