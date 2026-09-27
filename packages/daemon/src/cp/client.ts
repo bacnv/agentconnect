@@ -28,6 +28,8 @@ import type {
   CronReport,
   CronAuthor,
   CronAuthorOk,
+  CronCancel,
+  CronCancelOk,
   HookReport,
   HookStart,
   HookStartOk,
@@ -1002,6 +1004,18 @@ export class CpClient {
       throw new WireError('INTERNAL', `expected cron/author/ok, got ${rep.type}`, false)
     }
     return rep.payload as CronAuthorOk
+  }
+
+  /** Retire a cron this agent authored (D→C `cron/cancel` REQ). Ordinary retry: the CP's answer is
+   *  idempotent, so a retransmit after a dropped reply reports the same outcome. The CP decides
+   *  authority from the STORED row, so a `removed:false` reply is a refusal, never a wire error. */
+  async cancelCron(payload: CronCancel): Promise<CronCancelOk> {
+    this.requireReady('cron/cancel')
+    const rep = await this.request('cron/cancel', payload)
+    if (rep.type !== 'cron/cancel/ok') {
+      throw new WireError('INTERNAL', `expected cron/cancel/ok, got ${rep.type}`, false)
+    }
+    return rep.payload as CronCancelOk
   }
 
   /** Request a fresh Linear access token (linear-integration.md §7.3) — same posture as

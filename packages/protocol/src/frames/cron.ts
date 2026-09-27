@@ -123,3 +123,27 @@ export const CronAuthorOk = z.object({
   nextRun: z.string().datetime()
 })
 export type CronAuthorOk = z.infer<typeof CronAuthorOk>
+
+/**
+ * `cron/cancel` (D→C REQ → `cron/cancel/ok`) — the agent that authored a cron retires it. The
+ * counterpart of `cron/author`: a tool that can only create is one whose mistakes only a human
+ * can undo, which is the same objection that retired the model-pin proposal.
+ *
+ * Not named `cron/remove`: that frame is C→D, and one name for two directions is the ambiguity
+ * `FRAME_SCHEMAS` exists to prevent (the reason `cron/author` is not `cron/upsert`).
+ *
+ * Authority is the cron itself, not the caller's claim: the handler requires
+ * `cron.agentId === agentId` AND `cron.createdByUserId === null`, so an agent retires what it
+ * authored and never a schedule a human owns. `agentId` rides the payload only to scope the
+ * lookup; the fence reads the STORED row.
+ */
+export const CronCancel = z.object({
+  cronId: z.string().uuid(),
+  agentId: z.string().uuid()
+})
+export type CronCancel = z.infer<typeof CronCancel>
+
+/** `removed: false` means the cron is not this agent's to retire (unknown, foreign, or
+ *  human-authored) — a refusal the agent can report, not a wire error it must guess at. */
+export const CronCancelOk = z.object({ removed: z.boolean() })
+export type CronCancelOk = z.infer<typeof CronCancelOk>

@@ -29,6 +29,7 @@ import {
   APPROVAL_DM_ROUTE_V1_FEATURE,
   DAEMON_BOOTSTRAP_UPGRADE_FEATURE,
   AGENT_CRON_AUTHOR_FEATURE,
+  AGENT_CRON_CANCEL_FEATURE,
   GITCRED_GITHUB_V2_FEATURE,
   GITEA_V1_FEATURE,
   GITLAB_EFFECT_V1_FEATURE,
@@ -3022,6 +3023,13 @@ export class Daemon {
         if (!client) throw new Error('control plane is not connected')
         return await client.authorCron(req)
       },
+      // cancelCron: the agentId is the SESSION's, read inside the op from trusted context; the CP
+      // re-reads the stored row and refuses anything that agent did not author.
+      cancelCron: async (req) => {
+        const client = this.cpClient
+        if (!client) throw new Error('control plane is not connected')
+        return await client.cancelCron(req)
+      },
       // Agent→agent wake (§2.2). Same-daemon delivery only in P1; the daemon owns the
       // trusted caller identity + policy check + dispatch (a target elsewhere gets
       // reason:'not_local' — cross-daemon relay is P2).
@@ -3346,6 +3354,7 @@ export class Daemon {
         let tools = toolsForIntegrations(agent.integrations, {
           organizationKnowledge: this.cpClient?.supportsServerFeature?.(ORGANIZATION_KNOWLEDGE_FEATURE) === true,
           cronAuthor: this.cpClient?.supportsServerFeature?.(AGENT_CRON_AUTHOR_FEATURE) === true,
+          cronCancel: this.cpClient?.supportsServerFeature?.(AGENT_CRON_CANCEL_FEATURE) === true,
           currentPlatform: platform
         })
         // Static descriptor, dynamic authority: a per-thread ACP session can

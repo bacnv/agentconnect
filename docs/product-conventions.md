@@ -488,13 +488,21 @@ The timezone is the person's, not the agent's guess. The agent must state a name
 cannot leave it out or fall back to one nobody chose; where the person has not said, the agent
 is expected to ask.
 
-Afterwards it is the operator's, like any other scheduled task: an ordinary row in the Crons
+Afterwards it is also the operator's, like any other scheduled task: an ordinary row in the Crons
 view — same list, same detail page, same controls — showing no human creator, because no human
 made it. The control plane's audit record names the authoring agent, so an agent-authored
 schedule is attributable even though the console attributes nothing to a person. It can be
 disabled or deleted there like anything else. A wake is not a loop — nothing about it re-arms
 itself — but an agent that schedules many is visible in that one list, which is where an operator
 would notice.
+
+It is still the author's, though, and the agent can retire it: a schedule it created by mistake
+is one only a human could have undone otherwise, which would make cleanup the operator's job
+every time. The rule is authorship, not reach — an agent can cancel a cron **it** authored, and
+never one a person set up in the console, even when it serves that schedule. The refusal is
+reported as an answer rather than an error, because "that is not yours to remove" is something
+the agent should say out loud, not a fault it has to guess at. Cancelling is final; there is no
+undo, and a deleted schedule is re-created by authoring a new one.
 
 ## Self-authored channel roots
 

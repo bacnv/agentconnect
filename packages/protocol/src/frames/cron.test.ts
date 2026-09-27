@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CronAuthor, CronAuthorOk, CronUpsert } from './cron.js'
+import { CronAuthor, CronAuthorOk, CronCancel, CronCancelOk, CronUpsert } from './cron.js'
 
 const wireCron = {
   cronId: '11111111-1111-4111-8111-111111111111',
@@ -58,5 +58,21 @@ describe('CronAuthorOk', () => {
     }
     expect(CronAuthorOk.parse(ok)).toEqual(ok)
     expect(CronAuthorOk.safeParse({ ...ok, nextRun: null }).success).toBe(false)
+  })
+})
+
+describe('CronCancel', () => {
+  it('carries the id to retire and the agent claiming it', () => {
+    const cancel = {
+      cronId: '55555555-5555-4555-8555-555555555555',
+      agentId: '22222222-2222-4222-8222-222222222222'
+    }
+    expect(CronCancel.parse(cancel)).toEqual(cancel)
+    expect(CronCancel.safeParse({ cronId: cancel.cronId }).success).toBe(false)
+  })
+
+  it('answers removed:false for a cron the agent may not retire, rather than an error', () => {
+    expect(CronCancelOk.parse({ removed: false }).removed).toBe(false)
+    expect(CronCancelOk.safeParse({}).success).toBe(false)
   })
 })

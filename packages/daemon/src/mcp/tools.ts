@@ -1317,6 +1317,27 @@ function buildScheduleCronTool(): ToolDescriptor {
   }
 }
 
+/** `cancelCron` — the way out of a schedule you no longer want. Without it the only remedy for a
+ *  cron you authored by mistake is asking a human to delete it in the console, which is the
+ *  objection that retired the local-only cron tool in the first place. */
+function buildCancelCronTool(): ToolDescriptor {
+  return {
+    name: 'cancelCron',
+    description:
+      'Retire a cron YOU authored with `scheduleCron`, so it stops firing. Pass the `cronId` ' +
+      '`scheduleCron` returned. You can only cancel crons you created: one a person set up in the ' +
+      'console is not yours to remove, and cancelling it returns `removed: false` with the reason. A ' +
+      'cron this session never authored also answers `removed: false` — that is not an error, it means ' +
+      'nothing changed. Cancelling is final: author a new cron if you want it back.',
+    inputSchema: obj(
+      {
+        cronId: { type: 'string', minLength: 1, description: 'The id `scheduleCron` returned.' }
+      },
+      ['cronId']
+    )
+  }
+}
+
 export const ALL_TOOL_NAMES = [
   ...new Set(
     [
@@ -1325,6 +1346,7 @@ export const ALL_TOOL_NAMES = [
       buildSendMessageTool([]),
       buildShareFileTool(),
       buildScheduleCronTool(),
+      buildCancelCronTool(),
       // Built once per registered platform AS the session platform so every port gate opens:
       // the auto-allow set is about names, and a name some platform can inject must be listed
       // even for an agent that will never see it.
@@ -1362,7 +1384,12 @@ export const ALL_TOOL_NAMES = [
  */
 export function toolsForIntegrations(
   integrations: Integration[],
-  options: { organizationKnowledge?: boolean; currentPlatform?: string; cronAuthor?: boolean } = {}
+  options: {
+    organizationKnowledge?: boolean
+    currentPlatform?: string
+    cronAuthor?: boolean
+    cronCancel?: boolean
+  } = {}
 ): ToolDescriptor[] {
   const tools: ToolDescriptor[] = []
   const seen = new Set<string>()
@@ -1379,6 +1406,9 @@ export function toolsForIntegrations(
   // The CP answered on register that it serves `cron/author`; without that, the frame is
   // frame-fatal to it, so the tool must not be offered at all (see AGENT_CRON_AUTHOR_FEATURE).
   if (options.cronAuthor) add([buildScheduleCronTool()])
+  // Gated separately: a CP that serves `cron/author` but not `cron/cancel` would be sent a
+  // frame-fatal REQ by this tool, so the two features are never collapsed into one.
+  if (options.cronCancel) add([buildCancelCronTool()])
   // The unified `sendMessage` tool is ALWAYS present (session-concept §3): even a
   // memory-only agent with no platform integration can wake a peer (`toAgent`) or reply to
   // its origin (`sessionId`). The `platform` enum is narrowed to the agent's own platforms

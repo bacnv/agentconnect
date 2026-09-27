@@ -409,3 +409,9 @@ export const AGENT_MEMORY_STORE_V1_FEATURE = 'agent-memory-store-v1'
  *  `cron/upsert`. A daemon must not send that REQ before seeing this: a new request type is
  *  frame-fatal to an older CP. */
 export const AGENT_CRON_AUTHOR_FEATURE = 'agent-cron-author-v1'
+
+/** CP decodes a daemon-authored `cron/cancel` REQ, letting the agent that authored a cron retire
+ *  it without a human. Separate from {@link AGENT_CRON_AUTHOR_FEATURE} because a daemon against a
+ *  CP that serves authoring but not cancelling must offer `scheduleCron` and withhold
+ *  `cancelCron` — sending the newer REQ there is frame-fatal. */
+export const AGENT_CRON_CANCEL_FEATURE = 'agent-cron-cancel-v1'
