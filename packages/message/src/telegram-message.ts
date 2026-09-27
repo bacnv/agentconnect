@@ -77,6 +77,13 @@ export interface TelegramMessage {
   /** Membership service records are metadata, never user-authored agent turns. */
   new_chat_members?: TelegramUser[]
   left_chat_member?: TelegramUser
+  /** Forum service records. The Bot API has no `getForumTopics`, so a topic's NAME is only
+   *  ever learned from one of these — and a topic created while the bot was absent never
+   *  produces one at all. */
+  forum_topic_created?: { name?: string; icon_color?: number }
+  forum_topic_edited?: { name?: string }
+  forum_topic_closed?: Record<string, never>
+  forum_topic_reopened?: Record<string, never>
 }
 
 export function isTelegramMembershipServiceMessage(message: TelegramMessage): boolean {
@@ -167,6 +174,13 @@ export function quotedFromTelegramReply(message: TelegramMessage): QuotedMessage
  */
 export function telegramThread(message: TelegramMessage): string | undefined {
   return message.message_thread_id != null ? String(message.message_thread_id) : undefined
+}
+
+/** The forum topic a message belongs to, or undefined off a forum. `is_topic_message` is the
+ *  discriminator: a plain supergroup's `message_thread_id` is a reply root, a session
+ *  coordinate that never becomes a configurable topic. */
+export function telegramForumTopicId(message: TelegramMessage): string | undefined {
+  return message.is_topic_message === true ? telegramThread(message) : undefined
 }
 
 /** A Telegram-native message permalink when the Bot API event carries enough
