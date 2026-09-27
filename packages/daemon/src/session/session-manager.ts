@@ -16,7 +16,7 @@ import type { Agent } from '../agents/agent-schema.js'
 import type { LoadedAgent } from '../agents/load-agents.js'
 import { stableTurnId, type Attachment, type NormalizedMessage } from '../messages/normalized.js'
 import { messageOrderingFor } from '../platforms/message-ordering.js'
-import { attachmentMention, buildAttachmentBlocks } from './attachment-block.js'
+import { attachmentMention, buildAttachmentBlocks, type AttachmentDeps } from './attachment-block.js'
 import { DIRECT_AGENT_CALL_REMINDER, EXPLICIT_MENTION_REMINDER, NO_RESPONSE_REMINDER } from './no-response.js'
 import { planReplay, renderReplayContext } from './turn/replay-plan.js'
 import { AGENT_META_OPENING, buildStandingContext, type StandingContext } from './turn/standing-context.js'
@@ -758,6 +758,13 @@ export class SessionManager {
     // delivery, so the catch-up there reads only rows THIS agent sent or received —
     // a sibling must never see another child's role/task delivery or report.
     const blocks: ContentBlock[] = []
+    // Shared by the trigger's own files and the quoted source's: same download
+    // surface, same capability gate, same cap.
+    const attachmentDeps: AttachmentDeps = {
+      download: (att) => this.deps.downloadAttachment?.(agentId, att) ?? Promise.resolve(null),
+      supports: (kind) => host.promptSupports?.(kind) ?? false,
+      ...(this.deps.attachmentMaxBytes !== undefined ? { maxBytes: this.deps.attachmentMaxBytes } : {})
+    }
     let contextEvents: { ts: string; text?: string }[] = []
     let contextRevision = await this.deps.store.threadTranscriptRevision(transcriptChannel, thread, agentId)
     {
@@ -837,16 +844,16 @@ export class SessionManager {
 
     // §9.2 attachments on the current message → image/resource/resource_link blocks.
     if (ingested.attachments?.length) {
-      const attBlocks = await abortable(
-        () =>
-          buildAttachmentBlocks(ingested.attachments!, {
-            download: (att) => this.deps.downloadAttachment?.(agentId, att) ?? Promise.resolve(null),
-            supports: (kind) => host.promptSupports?.(kind) ?? false,
-            ...(this.deps.attachmentMaxBytes !== undefined ? { maxBytes: this.deps.attachmentMaxBytes } : {})
-          }),
-        signal
-      )
-      blocks.push(...attBlocks)
+      blocks.push(...(await abortable(() => buildAttachmentBlocks(ingested.attachments!, attachmentDeps), signal)))
+    }
+
+    // A quoted source's files ride the same way. The label names a photo the model
+    // does not otherwise have, so an agent asked to look at a replied-to picture would
+    // answer about a filename. Telegram carries `reply_to_message` inline and cannot
+    // fetch it later, which is exactly what makes the bytes reachable only here.
+    const quotedAttachments = msg.quoted?.attachments
+    if (quotedAttachments?.length) {
+      blocks.push(...(await abortable(() => buildAttachmentBlocks(quotedAttachments, attachmentDeps), signal)))
     }
 
     // Per-activation semantic recall happens only after the real user/peer/unread

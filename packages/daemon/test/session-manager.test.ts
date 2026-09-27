@@ -2573,6 +2573,100 @@ describe('SessionManager — quoted reply source', () => {
     await (await store).close()
   })
 
+  it('prompts with the BYTES of a picture on the replied-to message, not just its name', async () => {
+    // The production shape: a user replies "thử quả nước này" to someone else's
+    // photo. The label names a file the model never received, so it answered
+    // "model này của em mù mấy vụ ảnh" while the pixels sat one fetch away.
+    const store = await newStore()
+    const host = { newSession: vi.fn(async () => 'acp-1'), promptSupports: (k: string) => k === 'image' } as any
+    const png = Buffer.from('QUOTEDPNG')
+    const seen: string[] = []
+    const sm = new SessionManager({
+      store,
+      hostFor: async () => host,
+      agentById: () => agent,
+      memory,
+      downloadAttachment: async (_a, att) => {
+        seen.push(att.sourceUrl ?? '')
+        return png
+      }
+    })
+    const { blocks } = await sm.handle(
+      'bot-a',
+      tgMsg({
+        ts: '11',
+        thread: 'tg:11',
+        text: 'thử quả nước này không @bot-a?',
+        replyTo: '9',
+        quoted: {
+          messageId: '9',
+          sender: '@bacnv',
+          text: '[attached: AQADxhVrGySpyFV-.jpg (image/jpeg)]',
+          attachments: [{ id: 'f1', name: 'AQADxhVrGySpyFV-.jpg', mimeType: 'image/jpeg', sourceUrl: 'file-id-1' }]
+        }
+      })
+    )
+    const img = blocks.find((b: any) => b.type === 'image') as any
+    expect(img).toMatchObject({ type: 'image', mimeType: 'image/jpeg', data: png.toString('base64') })
+    expect(seen).toContain('file-id-1')
+    await (await store).close()
+  })
+
+  it('does not fetch quoted bytes for a plain text quote', async () => {
+    // The common case must not grow a download attempt.
+    const store = await newStore()
+    const downloads: unknown[] = []
+    const sm = new SessionManager({
+      store,
+      hostFor: async () => fakeHost(),
+      agentById: () => agent,
+      memory,
+      downloadAttachment: async (...args) => {
+        downloads.push(args)
+        return null
+      }
+    })
+    await sm.handle(
+      'bot-a',
+      tgMsg({
+        ts: '11',
+        text: '@bot-a look',
+        replyTo: '9',
+        quoted: { messageId: '9', sender: '@bob', text: 'the deploy failed' }
+      })
+    )
+    expect(downloads).toHaveLength(0)
+    await (await store).close()
+  })
+
+  it('degrades a quoted file to a pointer when the agent takes no images', async () => {
+    // No promptSupports → resource_link, exactly like the trigger's own attachment.
+    const store = await newStore()
+    const sm = new SessionManager({
+      store,
+      hostFor: async () => fakeHost(),
+      agentById: () => agent,
+      memory,
+      downloadAttachment: async () => Buffer.from('X')
+    })
+    const { blocks } = await sm.handle(
+      'bot-a',
+      tgMsg({
+        ts: '11',
+        text: '@bot-a look',
+        replyTo: '9',
+        quoted: {
+          messageId: '9',
+          text: '[attached: a.png (image/png)]',
+          attachments: [{ id: 'f1', name: 'a.png', mimeType: 'image/png', sourceUrl: 'https://files/f1' }]
+        }
+      })
+    )
+    const link = blocks.find((b: any) => b.type === 'resource_link') as any
+    expect(link).toMatchObject({ type: 'resource_link', name: 'a.png', uri: 'https://files/f1' })
+    await (await store).close()
+  })
+
   it('does not duplicate a quoted row THIS prompt already replays', async () => {
     const store = await newStore()
     const host = { newSession: vi.fn(async () => 'acp-1'), hasSession: () => true } as any
