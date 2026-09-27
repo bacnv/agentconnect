@@ -310,7 +310,9 @@ export async function integrationToSpec(
   // the Feishu WSClient). The 'shared' envelope is assembled by
   // {@link httpIntegrationToSpec}; the two differ ONLY in this envelope, which is
   // why the fork stays core and the payload behind it does not.
-  const core = { mode: 'direct' as const, bindRules, mutedChannels, affinityDenied, gated }
+  // ponytail: `[]` until the topic fold lands — add `overriddenThreadRefs(channels)` when
+  // `IntegrationChannelRecord` carries `threads`.
+  const core = { mode: 'direct' as const, bindRules, mutedChannels, affinityDenied, overriddenThreads: [], gated }
   return projectSpec(platforms, i, bot, core, secret)
 }
 
@@ -344,11 +346,14 @@ export async function httpIntegrationToSpec(
   // taking them positionally from each call site (§9: the bot row is a required
   // projector input, and passing it whole is what stopped three call sites from
   // disagreeing about which of its fields to forward).
+  // ponytail: `[]` until the topic fold lands — add `overriddenThreadRefs(channels)` when
+  // `IntegrationChannelRecord` carries `threads`.
   const httpCore = {
     mode: 'shared' as const,
     bindRules: gated ? gatedBindRules(channels) : [],
     mutedChannels: mutedChannelIds(channels, gated),
     affinityDenied: affinityDeniedChannelIds(channels),
+    overriddenThreads: [],
     gated
   }
   return projectSpec(platforms, i, bot, httpCore, secret)

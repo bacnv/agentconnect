@@ -111,7 +111,14 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
     const foreign = {
       id: 'i-x',
       platform: 'mastodon',
-      core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+      core: {
+        mode: 'direct',
+        bindRules: [],
+        mutedChannels: [],
+        affinityDenied: [],
+        overriddenThreads: [],
+        gated: false
+      },
       config: { botToken: 'x' }
     } as unknown as Integration
     expect(integrationConfig(foreign)).toBeUndefined()
@@ -120,14 +127,28 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
     const legacy = {
       id: 'i-legacy',
       platform: 'slack',
-      core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false }
+      core: {
+        mode: 'direct',
+        bindRules: [],
+        mutedChannels: [],
+        affinityDenied: [],
+        overriddenThreads: [],
+        gated: false
+      }
     } as unknown as Integration
     expect(integrationConfig(legacy)).toBeUndefined()
     // Malformed payload (missing the required botToken) => no config, no self id.
     const malformed = {
       id: 'i-bad',
       platform: 'slack',
-      core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+      core: {
+        mode: 'direct',
+        bindRules: [],
+        mutedChannels: [],
+        affinityDenied: [],
+        overriddenThreads: [],
+        gated: false
+      },
       config: { botUserId: 'U-ONLY' }
     } as unknown as Integration
     expect(integrationConfig(malformed)).toBeUndefined()
@@ -139,7 +160,14 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
       const proto = {
         id: `i-${platform}`,
         platform,
-        core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+        core: {
+          mode: 'direct',
+          bindRules: [],
+          mutedChannels: [],
+          affinityDenied: [],
+          overriddenThreads: [],
+          gated: false
+        },
         config: { botToken: 'x' }
       } as unknown as Integration
       expect(integrationConfig(proto)).toBeUndefined()
@@ -216,7 +244,14 @@ describe('resolveAgentIntegration', () => {
         {
           id: 'int1',
           platform: 'slack',
-          core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+          core: {
+            mode: 'direct',
+            bindRules: [],
+            mutedChannels: [],
+            affinityDenied: [],
+            overriddenThreads: [],
+            gated: false
+          },
           config: { botToken: 'x', botUserId: 'STATIC' } as any
         }
       ]
@@ -247,13 +282,27 @@ describe('resolveAgentIntegration', () => {
         {
           id: 'slack1',
           platform: 'slack',
-          core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+          core: {
+            mode: 'direct',
+            bindRules: [],
+            mutedChannels: [],
+            affinityDenied: [],
+            overriddenThreads: [],
+            gated: false
+          },
           config: { botToken: 'x', botUserId: 'BSLACK' } as any
         },
         {
           id: 'tg1',
           platform: 'telegram',
-          core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+          core: {
+            mode: 'direct',
+            bindRules: [],
+            mutedChannels: [],
+            affinityDenied: [],
+            overriddenThreads: [],
+            gated: false
+          },
           config: { botToken: 'x', botUserId: 'BTG' } as any
         }
       ]
@@ -347,7 +396,14 @@ describe('affinityDenied (§6.4 core-envelope read, mirroring mutedChannels)', (
         {
           id: 'int1',
           platform: 'telegram',
-          core: { mode: 'direct', bindRules: [], mutedChannels: ['C9'], affinityDenied: ['C-T'], gated: false },
+          core: {
+            mode: 'direct',
+            bindRules: [],
+            mutedChannels: ['C9'],
+            affinityDenied: ['C-T'],
+            overriddenThreads: [],
+            gated: false
+          },
           config: { botToken: 'x', botUserId: 'BTG' } as any
         }
       ]

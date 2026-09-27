@@ -11,7 +11,7 @@ const integration = (id: string, agentId = A1, token = 'xoxb-one'): IntegrationS
   integrationId: id,
   agentId,
   platform: 'slack',
-  core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+  core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], overriddenThreads: [], gated: false },
   config: { botToken: token, appToken: 'xapp-one' }
 })
 
@@ -48,6 +48,7 @@ describe('CpIntegrationRegistry (memory-only)', () => {
       bindRules: [],
       mutedChannels: [],
       affinityDenied: [],
+      overriddenThreads: [],
       gated: false
     }
     // No config at all.
