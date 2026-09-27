@@ -71,6 +71,7 @@ function steeringHost(opts: { supported?: boolean; steer?: () => Promise<string>
     }),
     cancel: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
+    promptSupports: vi.fn((kind: string) => kind === 'image'),
     ...(opts.supported === false
       ? {}
       : {
@@ -195,6 +196,31 @@ describe('mid-turn session steering', () => {
     await expect(settleAll(off, [d1, d2])).resolves.toEqual(['acp-1', 'acp-1'])
     expect(off.host.steer).not.toHaveBeenCalled()
     await disabled.stop()
+  })
+
+  it('steers a picture as BYTES, not just its name', async () => {
+    // A mid-turn photo took the steer path, whose prompt used to be text-only: the agent got a
+    // filename, and a capability-routing gateway saw no image to switch models for.
+    const h = steeringHost()
+    const daemon = await boot(h.host)
+    const first = msg('100.1', 'original request')
+    const p1 = (daemon as any).dispatch('bot-a', first, 'int-a')
+    await vi.waitFor(() => expect(h.host.prompt).toHaveBeenCalledOnce(), WAIT)
+
+    const bytes = Buffer.from('not-a-real-jpeg')
+    const p2 = (daemon as any).dispatch(
+      'bot-a',
+      msg('100.2', '', {
+        attachments: [{ id: 'F1', name: 'cup.jpg', mimeType: 'image/jpeg', inlineData: bytes }]
+      }),
+      'int-a'
+    )
+    await expect(p2).resolves.toBe('acp-1')
+    const [, blocks] = (h.host.steer as any).mock.calls[0]
+    expect(blocks).toContainEqual({ type: 'image', data: bytes.toString('base64'), mimeType: 'image/jpeg' })
+
+    await settleAll(h, [p1])
+    await daemon.stop()
   })
 
   it('queues once a turn has spent its steering budget', async () => {
