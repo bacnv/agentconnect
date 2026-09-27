@@ -253,9 +253,10 @@ owns "record what the platform told us and report it" for Telegram (`observeTele
 It merges into the cached snapshot's channel row and re-emits over the existing
 `integration/channels` frame (`cp/client.ts:803`) — no new frame.
 
-A topic is never retracted. Telegram reports no deletion, and the report is
-non-authoritative by construction (its omissions already mean nothing), so a vanished topic keeps
-its row. Stated as a limitation, not a bug; see Risks.
+A topic is never _retracted_: nothing is deleted, at the daemon, at the CP, or at Telegram. Telegram
+reports no topic deletion, so the daemon has nothing to act on and keeps reporting the topic. What an
+operator removes instead is the topic's trigger (§7), which folds into no rule, no fence and no
+grant, leaving a stale row inert. See Risks for why the row is not deleted outright.
 
 ### 7. Console
 
@@ -273,8 +274,17 @@ The topic row's control is the existing `TriggerSelect` with a fifth value:
 `'inherit'` is a **display-only sentinel**; the wire value is `null`. Keeping it a string avoids
 widening `TriggerSelect`'s `T extends string` (`TriggerSelect.tsx:33`) for one caller.
 
-Availability is opt-in and per-platform, on the existing list-semantics contract
-(`contract.ts:536`):
+**Clearing the trigger is the feature that removes a topic's setting, and it is the only removal
+here.** An operator needs to take a topic's trigger back off — usually because the topic is gone
+from Telegram and the row is stale — so `Follow group` must read as "this topic has no trigger of
+its own" rather than as a fifth setting. It is offered whether or not the row currently holds an
+override, so the one control reads the row's state instead of appearing and disappearing; picking it
+on an already-cleared row is the no-op `TriggerToggle` already short-circuits (`:33`).
+
+A topic that Telegram kept, whose trigger an operator removed anyway, simply answers by its group's
+trigger again — the state it had before anyone configured it. That is the intended fallback.
+
+Availability is opt-in and per-platform, on the existing list-semantics contract (`contract.ts:536`):
 
 ```ts
 /** Whether a conversation's rows can carry their own trigger. Only a platform with a real
@@ -303,9 +313,9 @@ sequence. `null` clears the override back to inherit.
 
 `docs/product-conventions.md`'s "Per-conversation trigger" (`:552`) is the section that states what a
 trigger means. It gains the topic paragraph: a topic inherits its group's trigger, a topic that is
-given its own ignores the group's entirely, and `off` on a topic is the topic's own silence rather
-than the group's. Per the repo convention that file is product behavior and is part of this change,
-not a follow-up.
+given its own ignores the group's entirely, `off` on a topic is the topic's own silence rather than
+the group's, and removing a topic's trigger returns it to inheriting. Per the repo convention that
+file is product behavior and is part of this change, not a follow-up.
 
 ## Work items
 
@@ -361,7 +371,8 @@ not a follow-up.
 18. `src/lib/api.ts` (`:880`), `src/lib/data.ts` (`:2147`) — the thread types, the DTO, and
     `updateIntegrationChannelThread`.
 19. `src/components/console/platforms/contract.ts` — `threadTriggers` on `WebChannelListSemantics`.
-20. `src/components/console/IntegrationChannelList.tsx` — the nested disclosure and the topic rows.
+20. `src/components/console/IntegrationChannelList.tsx` — the nested disclosure and the topic rows,
+    including `Follow group` as the row's clear-trigger control.
 21. `src/components/console/platforms/telegram/index.tsx` — declare `threadTriggers`.
 22. `src/lib/data-context.tsx` — `setThreadTrigger` beside `setChannelTrigger` (`:1415`).
 
@@ -390,7 +401,8 @@ not a follow-up.
 
 **`packages/control-plane/src/orchestrator/placement.test.ts`** — the fold, per row of §5's table,
 plus: an integration with no thread rows emits `overriddenThreads: []` and byte-identical fences; a
-**gated** integration emits a thread-scoped grant for each enabled topic and none for an `off` one.
+**gated** integration emits a thread-scoped grant for each enabled topic and none for an `off` one;
+a cleared trigger (NULL) is indistinguishable from one never set — no fence entry, no grant.
 
 **`packages/control-plane/test/integration/integration-channels.test.ts`** — a report carrying
 threads creates them; a re-report refreshes names while **preserving** a stored trigger; deleting the
@@ -405,7 +417,8 @@ topic with its name; a message carrying `topicId` reports one without; a non-for
 
 **`packages/web/src/components/console/IntegrationChannelList.trigger.test.tsx`** — the topic menu
 offers `Follow group` plus the four values on Telegram and no disclosure elsewhere; picking
-`Follow group` writes `null`.
+`Follow group` writes `null`; `Follow group` is offered on a topic that already inherits, so clearing
+is reachable without first setting a trigger.
 
 ## Risks and limitations
 
@@ -414,11 +427,16 @@ offers `Follow group` plus the four values on Telegram and no disclosure elsewhe
   unnamed row still carries the trigger control, which is the feature. Upgrade path: a console rename
   (the row would need a `name` write the report path already owns), or a Telegram-side lookup if the
   API gains one.
-- **A topic is never retired.** Telegram reports no topic deletion, and the report is
-  non-authoritative so omissions mean nothing. A deleted topic keeps its row until its group is
-  deleted. Upgrade path: the console's `deleteChannel` has a thread analogue
-  (`deleteThread`) it was not given here, deliberately — retiring rows is a separate decision from
-  configuring them.
+- **A stale topic row cannot be deleted, only cleared.** Telegram reports no topic deletion and the
+  report is non-authoritative, so nothing distinguishes "Telegram dropped this topic" from "the bot
+  has not heard from it lately" — and the second is the common case, since a quiet topic produces no
+  traffic either. Deleting on that evidence would retire live topics. The row survives and the remedy
+  is clearing its trigger (§7), which leaves it inert; the row is a label, not an effect. The
+  alternative is a tombstone the daemon must never lift, because a topic Telegram kept keeps
+  delivering and would resurrect the row through the one path that exists
+  (`clearRetractionOnTraffic`, `observed-channels-sync.ts:145`) — exactly the "comes back with the
+  default" failure. Upgrade path: if Telegram ever reports deletions, a thread tombstone becomes
+  honest and can reuse the channel precedent (`retracted_conversations`, `IntegrationForget`).
 - **The console cannot show a topic the bot has never seen traffic in.** That is the same fact as the
   missing listing call, and it is the accepted boundary: a topic with no traffic has no routing
   behaviour to configure either.
