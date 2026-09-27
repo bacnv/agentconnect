@@ -86,6 +86,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   runCron: { cronId: 'cron-1' },
   deleteCron: { cronId: 'cron-1', confirm: 'my-agent' },
   setChannelTrigger: { integrationId: 'integ-1', channelId: 'C123', trigger: 'any' },
+  setThreadTrigger: { integrationId: 'integ-1', channelId: '-100', threadId: '7', trigger: 'off' },
   removeIntegration: { integrationId: 'integ-1', confirm: 'my-agent' }
 }
 
@@ -310,6 +311,38 @@ describe('MCP tool registry — §6.2 invariants', () => {
     })
     const rest = w.calls[0]!.path.slice(`/orgs/${ORG_ID}/integrations/`.length)
     expect(rest.split('/')).toEqual(['i%2F..%2Fx', 'channels', 'C%3Flimit%3D1'])
+  })
+
+  it("sets a topic's trigger, and clears it with an explicit null", async () => {
+    const set = await run('setThreadTrigger')
+    expect(set.calls).toEqual([
+      {
+        method: 'PATCH',
+        path: `/orgs/${ORG_ID}/integrations/integ-1/channels/-100/threads/7`,
+        body: { trigger: 'off' }
+      }
+    ])
+
+    // `null` is a VALUE here, not an omission — the route's one field, so the body must
+    // carry it rather than dropping the key and letting the schema reject the request.
+    const cleared = await run('setThreadTrigger', { ...ARGS.setThreadTrigger, trigger: null })
+    expect(cleared.calls[0]!.body).toEqual({ trigger: null })
+
+    // Same segment encoding as the conversation write: the topic id cannot traverse.
+    const crafted = recordingCtx()
+    await findTool('setThreadTrigger')!.call(crafted.ctx, {
+      integrationId: 'integ-1',
+      channelId: '-100',
+      threadId: '../channels/x',
+      trigger: 'any'
+    })
+    expect(crafted.calls[0]!.path.slice(`/orgs/${ORG_ID}/integrations/`.length).split('/')).toEqual([
+      'integ-1',
+      'channels',
+      '-100',
+      'threads',
+      '..%2Fchannels%2Fx'
+    ])
   })
 
   it('the operation reads are scoped to the delegated conversation, never to a named one', async () => {
