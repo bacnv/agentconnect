@@ -84,6 +84,16 @@ describe('platform set', () => {
     expect(PLATFORMS.map((tile) => tile.key)).toEqual([...platformRegistry.ids(), ...CORE_TRIGGER_KINDS])
   })
 
+  it('declares configurable threads only where a real sub-conversation exists', () => {
+    // The topic controls are opt-in because a thread the platform does not model would be a
+    // control that writes a row nothing reads: a Slack reply-chain root is a session
+    // coordinate, not a configurable topic.
+    expect(channelListSemantics('telegram').threadTriggers).toEqual(['off', 'mention', 'mention_topic', 'any'])
+    for (const id of platformRegistry.ids()) {
+      if (id !== 'telegram') expect(channelListSemantics(id).threadTriggers, id).toBeUndefined()
+    }
+  })
+
   it('labels every picker tile from the display-name table and blurbs every choice', () => {
     for (const tile of BOT_PLATFORMS) {
       expect(tile.label, tile.key).toBe(platformLabel(tile.key)?.picker)

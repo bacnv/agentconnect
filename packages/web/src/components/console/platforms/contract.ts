@@ -562,6 +562,12 @@ export interface WebChannelListSemantics {
    */
   triggers?: readonly ('off' | 'mention' | 'mention_topic' | 'any')[]
   /**
+   * Whether a conversation's rows can carry their own trigger. Only a platform with a real
+   * sub-conversation — Telegram forum topics — declares it, and one that declares nothing
+   * renders no disclosure at all.
+   */
+  threadTriggers?: readonly ('off' | 'mention' | 'mention_topic' | 'any')[]
+  /**
    * Confirmation shown before a row's default dispatch moves OFF a RESTRICTED agent.
    * Where an owner compiles to a per-conversation default rather than an ownership
    * route, that seat is the only grant a gated agent holds in the room, so moving it

@@ -36,7 +36,10 @@ export const telegramModule: WebPlatformModule<TelegramApi> = {
     leave: 'conversation',
     // The reply arm works because the daemon records each post's platform message id
     // beside the bot's own identity, so a reply resolves to the agent that was answered.
-    triggers: ['off', 'mention', 'mention_topic', 'any']
+    triggers: ['off', 'mention', 'mention_topic', 'any'],
+    // A forum topic is a real sub-conversation the bot can be addressed in without the group
+    // hearing it, so it carries a trigger of its own — the group's rules are then suspended there.
+    threadTriggers: ['off', 'mention', 'mention_topic', 'any']
   },
   messageIdentity: (row) => (TELEGRAM_MESSAGE_ID.test(row.ts) ? `ts:${row.ts}` : null)
 }
