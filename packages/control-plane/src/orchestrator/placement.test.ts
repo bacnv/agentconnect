@@ -136,7 +136,10 @@ describe('integrationToSpec thread overrides', () => {
   it('an off topic contributes a thread-shaped mute and an override', async () => {
     const spec = await specOf(INTEGRATION, SECRET, [{ ...channel('C1', 'mention'), threads: [thread('7', 'off')] }])
     expect(spec.core?.overriddenThreads).toEqual([{ channel: 'C1', thread: '7' }])
-    expect(spec.core?.mutedChannels).toEqual([{ channel: 'C1', thread: '7' }])
+    // The thread half rides its OWN field: an object inside `mutedChannels` would make an
+    // older daemon reject the whole register/ok (tolerantReader relaxes objects, not element types).
+    expect(spec.core?.mutedThreads).toEqual([{ channel: 'C1', thread: '7' }])
+    expect(spec.core?.mutedChannels).toEqual([])
   })
 
   it('an any topic gets a thread-scoped auto rule', async () => {
@@ -148,7 +151,8 @@ describe('integrationToSpec thread overrides', () => {
     const spec = await specOf(INTEGRATION, SECRET, [
       { ...channel('C1', 'any'), threads: [thread('7', 'mention_topic')] }
     ])
-    expect(spec.core?.affinityDenied).toEqual([{ channel: 'C1', thread: '7' }])
+    expect(spec.core?.affinityDeniedThreads).toEqual([{ channel: 'C1', thread: '7' }])
+    expect(spec.core?.affinityDenied).toEqual([])
     expect(spec.core?.mutedChannels).toEqual([])
   })
 

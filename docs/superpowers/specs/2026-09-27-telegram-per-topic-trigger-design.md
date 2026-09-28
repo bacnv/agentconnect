@@ -165,22 +165,29 @@ nested rendering honest.
 
 ### 4. Wire
 
-Two additions to `frames/integration.ts`, both backward compatible by construction.
+Three additions to `frames/integration.ts`, all backward compatible by construction.
 
 ```ts
-/** A fence target: a whole conversation, or one thread of it (a Telegram forum topic).
- *  The bare string is the channel-wide form every existing producer sends — an older
- *  daemon parses it unchanged. */
+/** A fence target: a whole conversation, or one thread of it (a Telegram forum topic). */
 export const ScopeRef = z.union([z.string(), z.object({ channel: z.string(), thread: z.string() })])
 export const ThreadRef = z.object({ channel: z.string(), thread: z.string() })
 ```
 
 `IntegrationCoreEnvelope` (`:146`):
 
-- `mutedChannels: z.array(ScopeRef).default([])` — widened in place, so the emitted JSON for an
-  integration with no topics is byte-identical to today's.
-- `affinityDenied: z.array(ScopeRef).default([])` — the same widening.
+- `mutedChannels: z.array(z.string()).default([])` — **unchanged**, deliberately. An earlier draft
+  widened it to `ScopeRef`; that breaks the handshake, because `tolerantReader` relaxes a strict
+  object but **not an element type** (`tolerant.ts`), so one thread-shaped element makes an older
+  daemon reject the whole `register/ok` and fail identically on every retry — the exact failure the
+  tolerant reader exists to prevent, and reachable because the CP upgrades first.
+- `mutedThreads` / `affinityDeniedThreads: z.array(ThreadRef).optional()` — the thread halves as
+  **new sibling keys**, which strip to "not individually fenced" on an older reader instead. Optional
+  and emitted only when a topic sets one, so a group with no topics emits the byte-identical JSON it
+  did before topics existed.
 - `overriddenThreads: z.array(ThreadRef).default([])` — new.
+
+The daemon merges the two thread halves back into one list in `integrationCore`
+(`platforms/integration-config.ts`), so everything downstream still reads one fence.
 
 The report direction (`:274`) carries topics on their conversation, so a report stays atomic:
 
@@ -321,9 +328,10 @@ file is product behavior and is part of this change, not a follow-up.
 
 **Wire — `packages/protocol`**
 
-1. `frames/integration.ts` — `ScopeRef`, `ThreadRef`, `IntegrationChannelThread`; widen
-   `mutedChannels` and `affinityDenied` to `ScopeRef`; add `overriddenThreads`; add `threads` to
-   `IntegrationChannel`.
+1. `frames/integration.ts` — `ScopeRef`, `ThreadRef`, `IntegrationChannelThread`; add
+   `overriddenThreads` and the two optional thread halves (`mutedThreads`/`affinityDeniedThreads`),
+   leaving `mutedChannels`/`affinityDenied` the `string[]` an older daemon already reads; add
+   `threads` to `IntegrationChannel`.
 
 **Policy — `packages/activation-policy`**
 

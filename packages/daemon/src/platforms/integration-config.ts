@@ -80,6 +80,9 @@ export interface IntegrationCore {
   /** Threads that carry their own trigger (a Telegram forum topic), normalized for the
    *  same reason: a hand-assembled integration reads as "none overridden" without it. */
   overriddenThreads: ThreadRef[]
+  /** The wire's thread half of the two fences, read only to be merged into them above. */
+  mutedThreads?: ThreadRef[]
+  affinityDeniedThreads?: ThreadRef[]
   gated: boolean
 }
 
@@ -148,12 +151,14 @@ export function configuredBotSelfId(int: Integration): string | undefined {
  *  platform, with no knowledge of which platform it is. Normalized for
  *  hand-assembled objects that bypassed the schema's defaults. */
 export function integrationCore(int: Integration): IntegrationCore {
+  // The two fences read MERGED: the wire keeps a thread half in sibling fields so an older
+  // daemon strips it instead of failing the handshake, and everything downstream reads one list.
   const core = int.core as Partial<IntegrationCore> | undefined
   return {
     mode: core?.mode ?? 'direct',
     bindRules: core?.bindRules ?? [],
-    mutedChannels: core?.mutedChannels ?? [],
-    affinityDenied: core?.affinityDenied ?? [],
+    mutedChannels: [...(core?.mutedChannels ?? []), ...(core?.mutedThreads ?? [])],
+    affinityDenied: [...(core?.affinityDenied ?? []), ...(core?.affinityDeniedThreads ?? [])],
     overriddenThreads: core?.overriddenThreads ?? [],
     gated: core?.gated ?? false
   }

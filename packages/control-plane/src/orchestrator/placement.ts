@@ -35,7 +35,6 @@ import type {
   IntegrationCoreEnvelope,
   McpServerSpec,
   MemoryConnectionSpec,
-  ScopeRef,
   ThreadRef
 } from '@agentconnect.md/protocol'
 import { SessionRetentionSetting } from '@agentconnect.md/protocol'
@@ -286,22 +285,31 @@ function threadRows(
  * Direct rows use the same fence: their Off/On control is visible and effective for
  * every agent. A gated integration still expresses Off by omitting its scoped rule.
  */
-function mutedChannelIds(channels: IntegrationChannelRecord[], gated: boolean): ScopeRef[] {
+function mutedChannelIds(channels: IntegrationChannelRecord[], gated: boolean): string[] {
   if (gated) return []
-  const topics = threadRows(channels)
+  return channels.filter((c) => c.trigger === 'off').map((c) => c.channelId)
+}
+
+/** The Off TOPICS — the thread half of the mute fence, its own field so an older daemon
+ *  strips it rather than rejecting the frame (see `mutedThreads` on the wire schema). */
+function mutedThreadRefs(channels: IntegrationChannelRecord[]): ThreadRef[] {
+  return threadRows(channels)
     .filter((t) => t.trigger === 'off')
     .map((t) => ({ channel: t.channel, thread: t.thread }))
-  return [...channels.filter((c) => c.trigger === 'off').map((c) => c.channelId), ...topics]
 }
 
 /** The explicit-address conversations of an integration — its `affinityDenied` fence.
  *  Unlike `mutedChannels` this is NOT skipped when gated: Off is expressed by the missing
  *  scoped rule, but affinity denial is orthogonal to the grant. */
-function affinityDeniedRefs(channels: IntegrationChannelRecord[]): ScopeRef[] {
-  const topics = threadRows(channels)
+function affinityDeniedRefs(channels: IntegrationChannelRecord[]): string[] {
+  return channels.filter((c) => c.trigger === 'mention_topic').map((c) => c.channelId)
+}
+
+/** The `mention_topic` topics of an integration — the thread half of `affinityDenied`. */
+function affinityDeniedThreadRefs(channels: IntegrationChannelRecord[]): ThreadRef[] {
+  return threadRows(channels)
     .filter((t) => t.trigger === 'mention_topic')
     .map((t) => ({ channel: t.channel, thread: t.thread }))
-  return [...channels.filter((c) => c.trigger === 'mention_topic').map((c) => c.channelId), ...topics]
 }
 
 /**
@@ -351,17 +359,29 @@ export async function integrationToSpec(
   // the Feishu WSClient). The 'shared' envelope is assembled by
   // {@link httpIntegrationToSpec}; the two differ ONLY in this envelope, which is
   // why the fork stays core and the payload behind it does not.
-  // ponytail: `[]` until the topic fold lands — add `overriddenThreadRefs(channels)` when
-  // `IntegrationChannelRecord` carries `threads`.
   const core = {
     mode: 'direct' as const,
     bindRules,
     mutedChannels,
     affinityDenied,
     overriddenThreads: overriddenThreadRefs(channels),
+    ...threadHalves(channels),
     gated
   }
   return projectSpec(platforms, i, bot, core, secret)
+}
+
+/** The two optional thread halves, present only when a topic sets one — so a group with no
+ *  topics emits the byte-identical envelope it did before topics existed. */
+function threadHalves(
+  channels: IntegrationChannelRecord[]
+): Pick<IntegrationCoreEnvelope, 'mutedThreads' | 'affinityDeniedThreads'> {
+  const muted = mutedThreadRefs(channels)
+  const denied = affinityDeniedThreadRefs(channels)
+  return {
+    ...(muted.length > 0 ? { mutedThreads: muted } : {}),
+    ...(denied.length > 0 ? { affinityDeniedThreads: denied } : {})
+  }
 }
 
 /**
@@ -400,6 +420,7 @@ export async function httpIntegrationToSpec(
     mutedChannels: mutedChannelIds(channels, gated),
     affinityDenied: affinityDeniedRefs(channels),
     overriddenThreads: overriddenThreadRefs(channels),
+    ...threadHalves(channels),
     gated
   }
   return projectSpec(platforms, i, bot, httpCore, secret)

@@ -162,6 +162,8 @@ const CORE: IntegrationCoreEnvelope = {
   mutedChannels: [],
   affinityDenied: [],
   overriddenThreads: [],
+  mutedThreads: [],
+  affinityDeniedThreads: [],
   gated: false
 }
 

@@ -137,9 +137,7 @@ export const IntegrationLinearConfig = z.object({
 })
 export type IntegrationLinearConfig = z.infer<typeof IntegrationLinearConfig>
 
-/** A fence target: a whole conversation, or one thread of it (a Telegram forum topic).
- *  The bare string is the channel-wide form every existing producer sends — an older
- *  daemon parses it unchanged. */
+/** A fence target: a whole conversation, or one thread of it (a Telegram forum topic). */
 export const ScopeRef = z.union([z.string(), z.object({ channel: z.string(), thread: z.string() })])
 export type ScopeRef = z.infer<typeof ScopeRef>
 
@@ -156,13 +154,19 @@ export type ThreadRef = z.infer<typeof ThreadRef>
 export const IntegrationCoreEnvelope = z.object({
   mode: z.enum(['direct', 'shared']).default('direct'),
   bindRules: z.array(IntegrationBindRule).default([]),
-  mutedChannels: z.array(ScopeRef).default([]),
+  mutedChannels: z.array(z.string()).default([]),
   // Conversations where an implicit continuation (an open session) is denied: only an
   // explicit address — an @-mention or a reply to one of the agent's own messages
   // reaches it. Orthogonal to `mutedChannels`, which silences the conversation outright.
-  affinityDenied: z.array(ScopeRef).default([]),
+  affinityDenied: z.array(z.string()).default([]),
   /** Threads whose own trigger overrides everything the enclosing channel states. */
   overriddenThreads: z.array(ThreadRef).default([]),
+  // The THREAD half of the two fences above, as new OPTIONAL keys rather than a widening of
+  // theirs: `tolerantReader` relaxes a strict object but NOT an element type, so a thread-shaped
+  // element inside `mutedChannels` makes an older daemon reject the whole `register/ok`. These
+  // strip instead, degrading to "the topic is not individually fenced" — how it behaved anyway.
+  mutedThreads: z.array(ThreadRef).optional(),
+  affinityDeniedThreads: z.array(ThreadRef).optional(),
   gated: z.boolean().default(false)
 })
 export type IntegrationCoreEnvelope = z.infer<typeof IntegrationCoreEnvelope>
