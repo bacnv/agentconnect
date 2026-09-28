@@ -88,6 +88,47 @@ describe('conversationAdmitsAgent (the Off/gated fence predicate)', () => {
   })
 })
 
+describe('conversationAdmitsAgent with a topic carrying its own trigger', () => {
+  // The shapes `placement.ts` really emits, which the rules above do not model: an ungated
+  // integration reaches a topic through an UNSCOPED default, a gated one through the group's
+  // channel-scoped grant. The difference decides whether a `mention` topic stays admitted.
+  const override = [{ channel: 'C1', thread: 'T1' }]
+  const ungated = (topicTrigger: 'off' | 'mention') => [
+    rule({ agentId: 'a1', overriddenThreads: override }),
+    ...(topicTrigger === 'off' ? [rule({ agentId: 'a1', mutedChannels: override, overriddenThreads: override })] : [])
+  ]
+  const gated = (topicTrigger: 'off' | 'mention' | 'any') => [
+    rule({ agentId: 'a1', scope: { channel: 'C1' }, overriddenThreads: override }),
+    ...(topicTrigger === 'off'
+      ? []
+      : [rule({ agentId: 'a1', scope: { channel: 'C1', thread: 'T1' }, overriddenThreads: override })])
+  ]
+
+  it('keeps a mention topic on an ungated integration admitted — it carries no rule of its own', () => {
+    expect(conversationAdmitsAgent(ungated('mention'), 'a1', 'C1', 'T1')).toBe(true)
+  })
+
+  it('refuses an off topic on an ungated integration, whose mute is thread-shaped', () => {
+    expect(conversationAdmitsAgent(ungated('off'), 'a1', 'C1', 'T1')).toBe(false)
+  })
+
+  // The fail-open this predicate had: `mutedChannelIds` returns [] when gated, so Off is the
+  // absent thread-scoped rule — and the group's channel-scoped grant must NOT stand in for it.
+  it('refuses an off topic on a gated integration, though the group’s own grant is present', () => {
+    expect(conversationAdmitsAgent(gated('off'), 'a1', 'C1', 'T1')).toBe(false)
+  })
+
+  it('admits an enabled topic on a gated integration through its own thread-scoped grant', () => {
+    expect(conversationAdmitsAgent(gated('mention'), 'a1', 'C1', 'T1')).toBe(true)
+    expect(conversationAdmitsAgent(gated('any'), 'a1', 'C1', 'T1')).toBe(true)
+  })
+
+  it('keeps the group coordinate itself admitted — the override is a fact about the topic', () => {
+    expect(conversationAdmitsAgent(gated('off'), 'a1', 'C1')).toBe(true)
+    expect(conversationAdmitsAgent(ungated('off'), 'a1', 'C1')).toBe(true)
+  })
+})
+
 describe('hop gates (§4.1)', () => {
   it('isUsableSourceDepth fails closed on missing / non-integer / negative depths', () => {
     expect(isUsableSourceDepth(undefined)).toBe(false)

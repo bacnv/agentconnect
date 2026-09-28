@@ -85,10 +85,11 @@ export function conversationAdmitted(
   const own = !routing.overriddenThreads.some((t) => refCovers(t, channel, thread, true))
   if (routing.mutedChannels.some((muted) => refCovers(muted, channel, thread, own))) return false
   if (!routing.gated) return true
-  // Gating is fail-closed whatever the override: the channel's grant is not the topic's, and a
-  // topic the operator opened carries its own rule (thread-shaped) which this admits.
+  // Gating is fail-closed whatever the override: a channel-scoped rule is the conversation's OWN
+  // statement, so it stops at a topic that carries its own trigger — without this, a gated
+  // integration's `off` topic (which compiles to NO rule of its own) is admitted by the group's grant.
   return routing.bindRules.some(
-    (rule) => rule.channel === channel && (rule.thread === undefined || rule.thread === thread)
+    (rule) => rule.channel === channel && (rule.thread === undefined ? own : rule.thread === thread)
   )
 }
 

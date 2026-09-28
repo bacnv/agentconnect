@@ -299,16 +299,19 @@ export function conversationAdmitsAgent(
   // Only the coordinates `refCovers`/`channelReaches` read, so the fence answers exactly as
   // `scopeMatches` would — no transcript lookup and no platform facts needed.
   const probe = { channel, thread } as ActivationMessageFacts
-  // The fence, without `scopeMatches`' channel-scoped drop: a `mention` topic carries no rule
-  // of its own, so dropping its channel-scoped rules would refuse a conversation routing admits.
   const fenced = (rule: ActivationRule): boolean => {
     const own = channelReaches(rule, probe)
     return rule.mutedChannels?.some((muted) => refCovers(muted, probe, own)) === true
   }
   if (agentRules.some(fenced)) return false
-  return agentRules.some(
-    (rule) => covers(rule.scope.channel) && (rule.scope.thread === undefined || rule.scope.thread === thread)
-  )
+  // Scoped as `scopeMatches` scopes: a channel-scoped rule IS the conversation's own statement,
+  // so a topic carrying its own trigger drops it — how a gated integration's `off` topic (its Off
+  // being the absent thread-scoped rule) is refused. An UNSCOPED rule names no conversation and stays.
+  return agentRules.some((rule) => {
+    if (rule.scope.thread === undefined && rule.scope.channel !== undefined && !channelReaches(rule, probe))
+      return false
+    return covers(rule.scope.channel) && (rule.scope.thread === undefined || rule.scope.thread === thread)
+  })
 }
 
 /** Is a stamped source depth usable at all? §4.1 rule 1 / §5.2a fail-closed: a
