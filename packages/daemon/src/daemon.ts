@@ -426,10 +426,12 @@ import {
   type ProbeOptions,
   type RuntimeProbeResult
 } from './runtimes/runtime-prober.js'
+import { applyGatewayModelList, fetchGatewayModelList } from './runtimes/gateway-model-list.js'
 import { ModelCatalogService } from './runtimes/model-catalog.js'
 import { makeModelEnumerator } from './runtimes/model-enumerator.js'
 import { clusterProbeHostFactory, defaultProbeHostFactory } from './acp/probe-host-factory.js'
 import { runtimeHomePath } from './runtimes/runtime-home.js'
+import { resolveClaudeConfigSources } from './runtimes/runtime-credential-sources.js'
 import { planRuntimeInstallRepair, repairRuntimeInstall } from './runtimes/runtime-install-repair.js'
 import { RuntimeStore, parseNpxLaunch, storedRuntimeDef } from './runtimes/runtime-store.js'
 import { ArchiveStore, parseArchiveLaunch, storedArchiveRuntimeDef } from './runtimes/archive-store.js'
@@ -1966,6 +1968,8 @@ export class Daemon {
     this.log.info(
       `control plane: ${cfg.controlPlane?.enabled ? `enabled (${cfg.controlPlane.url ?? 'no url'})` : 'disabled — running local'}`
     )
+    // Here, before anything can spawn: the picker a session advertises comes from this env.
+    await this.adoptGatewayModelList()
     const { snapshot, discoveredAgents, agents } = this.loadAgents(root, cfg)
     this.assertWorkspaceExclusivity(snapshot, agents)
     this.sweepStaleAgentArtifacts(discoveredAgents)
@@ -3561,6 +3565,28 @@ export class Daemon {
     // constructor: it reads the store, and the sweep needs the loaded agents' directories. A
     // deployment with dreams blocked still builds no runner at boot — it recovers on first use.
     if (this.dreamOperationsAllowed()) await this.dreamRunner().initialize()
+  }
+
+  /** Phase 6b — ask the gateway which combo models it serves, before anything can spawn.
+   *
+   *  The daemon's own `process.env` is the right resolver: a launch seeds state from its host env
+   *  and a probe from its RAW source env, which is this process's. Resolving through the curated
+   *  probe env instead would drop HOME and CLAUDE_CONFIG_DIR and land on the wrong file.
+   *  A k8s deployment has no local gateway to ask, and an unreachable one keeps whatever the
+   *  operator configured — never overridden. */
+  private async adoptGatewayModelList(): Promise<void> {
+    if (this.k8s) return
+    const { configDir } = resolveClaudeConfigSources(process.env)
+    const settingsFile = join(configDir, 'settings.json')
+    const models = await fetchGatewayModelList(process.env.ANTHROPIC_BASE_URL, process.env.ANTHROPIC_AUTH_TOKEN, {
+      log: this.log
+    })
+    if (!models) return
+    // Logged either way: a silent steady-state boot reads as "never ran".
+    const changed = applyGatewayModelList(settingsFile, models)
+    this.log.info(
+      `gateway models: ${models.length} combo model(s) from ${settingsFile}${changed ? '' : ' (unchanged)'}`
+    )
   }
 
   /** Phase 31 — curated admission, the deferred CP connect, the periodic sweeps, and only then: ready. */

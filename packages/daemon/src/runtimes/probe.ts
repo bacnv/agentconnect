@@ -161,6 +161,11 @@ const QODER_SEED = (brand: string): readonly string[] => [
   'a2a-oauth-tokens.json'
 ]
 const CLAUDE_GLOBAL_SEED_KEYS = ['additionalModelOptionsCache', 'primaryApiKey'] as const
+/** `availableModels` is the one Claude Code setting that ADDS model ids rather than filtering
+ * them, so it is how a deployment on a third-party gateway reaches its own models: the four
+ * alias slots cap an operator at four extra choices. Project only that key — a host
+ * settings.json also carries hooks, env and helper paths that must stay on the host. */
+const CLAUDE_MODEL_SETTINGS_SEED_KEYS = ['availableModels'] as const
 /** DeepSeek Harness auth: the managed 0600 credential store plus its .env fallback. */
 const DSH_CREDENTIALS = [
   { path: '.credentials.yaml', format: 'dsh' },
@@ -178,13 +183,14 @@ export const RUNTIME_STATE_LOCATIONS: Record<string, RuntimeStateLocator> = {
     if (dirname(globalConfigFile) === configDir) {
       return [
         ...state(configDir, '.claude', [basename(globalConfigFile)], CLAUDE_GLOBAL_SEED_KEYS),
+        ...state(configDir, '.claude', ['settings.json'], CLAUDE_MODEL_SETTINGS_SEED_KEYS),
         ...state(join(home(env), '.claude.json'), '.claude.json', undefined, ['additionalModelOptionsCache'])
       ]
     }
     return [
       ...state(globalConfigFile, '.claude.json', undefined, CLAUDE_GLOBAL_SEED_KEYS),
       ...state(globalConfigFile, join('.claude', '.claude.json'), undefined, CLAUDE_GLOBAL_SEED_KEYS),
-      ...state(configDir, '.claude', [])
+      ...state(configDir, '.claude', ['settings.json'], CLAUDE_MODEL_SETTINGS_SEED_KEYS)
     ]
   },
 
