@@ -106,7 +106,10 @@ export class ObservedChannelsSync {
               ...(spaceId ? { spaceId } : {}),
               ...(space ? { space } : {}),
               ...(previous?.isPrivate !== undefined ? { isPrivate: previous.isPrivate } : {}),
-              ...(kind ? { kind } : {})
+              ...(kind ? { kind } : {}),
+              // Topics arrive only from traffic, so a refresh would erase them until the next
+              // message in the forum re-learned them — carried over instead, like `isPrivate` above.
+              ...(previous?.threads ? { threads: previous.threads } : {})
             }
           })
           const retained = await Promise.all(
