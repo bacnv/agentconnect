@@ -4,6 +4,9 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { applyGatewayModelList, fetchGatewayModelList } from '../src/runtimes/gateway-model-list.js'
 
+/** Spelled out rather than imported: if someone empties the constant, the alias tests must FAIL. */
+const ALIASES = ['opus', 'opus[1m]', 'sonnet', 'sonnet[1m]', 'haiku', 'fable']
+
 const gatewayPayload = {
   data: [
     { id: 'combo-gpt', object: 'model', owned_by: 'combo' },
@@ -71,12 +74,18 @@ describe('applyGatewayModelList', () => {
     return file
   }
 
-  it('writes the list, creating the config dir a cold host does not have yet', () => {
+  it('always carries the built-in alias rows, so a session pinned to `haiku` never falls to default', () => {
     const file = settingsFile()
     expect(applyGatewayModelList(file, ['kimi-k-2-7-code', 'glm-5.3-flash'])).toBe(true)
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
-      availableModels: ['kimi-k-2-7-code', 'glm-5.3-flash']
+      availableModels: [...ALIASES, 'kimi-k-2-7-code', 'glm-5.3-flash']
     })
+  })
+
+  it('does not repeat an alias the gateway also serves as a combo', () => {
+    const file = settingsFile()
+    applyGatewayModelList(file, ['haiku', 'combo-gpt'])
+    expect(JSON.parse(readFileSync(file, 'utf8')).availableModels).toEqual([...ALIASES, 'combo-gpt'])
   })
 
   it('preserves every other key an operator put in settings.json', () => {
@@ -85,18 +94,26 @@ describe('applyGatewayModelList', () => {
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
       env: { ANTHROPIC_BASE_URL: 'https://gw.example/v1' },
       model: 'opus',
-      availableModels: ['kimi-k-2-7-code']
+      availableModels: [...ALIASES, 'kimi-k-2-7-code']
     })
   })
 
   it('rewrites its own list when the gateway changes, so a refresh is not frozen at first boot', () => {
+    const aliases = [...ALIASES]
     const file = settingsFile()
     expect(applyGatewayModelList(file, ['combo-gpt'])).toBe(true)
-    expect(JSON.parse(readFileSync(file, 'utf8')).availableModels).toEqual(['combo-gpt'])
+    expect(JSON.parse(readFileSync(file, 'utf8')).availableModels).toEqual([...aliases, 'combo-gpt'])
     expect(applyGatewayModelList(file, ['combo-gpt', 'combo-haiku'])).toBe(true)
-    expect(JSON.parse(readFileSync(file, 'utf8')).availableModels).toEqual(['combo-gpt', 'combo-haiku'])
+    expect(JSON.parse(readFileSync(file, 'utf8')).availableModels).toEqual([...aliases, 'combo-gpt', 'combo-haiku'])
     expect(applyGatewayModelList(file, ['combo-gpt'])).toBe(true)
-    expect(JSON.parse(readFileSync(file, 'utf8')).availableModels).toEqual(['combo-gpt'])
+    expect(JSON.parse(readFileSync(file, 'utf8')).availableModels).toEqual([...aliases, 'combo-gpt'])
+  })
+
+  it('heals a list this daemon wrote before it knew about aliases', () => {
+    const file = settingsFile(JSON.stringify({ availableModels: ['combo-gpt'] }))
+    writeFileSync(`${file}.agentconnect-models`, 'combo-gpt\n')
+    expect(applyGatewayModelList(file, ['combo-gpt'])).toBe(true)
+    expect(JSON.parse(readFileSync(file, 'utf8')).availableModels).toEqual([...ALIASES, 'combo-gpt'])
   })
 
   it('rewrites nothing when the gateway answers the list it already wrote', () => {
@@ -121,7 +138,10 @@ describe('applyGatewayModelList', () => {
   it('keeps the marker out of settings.json, which belongs to the operator', () => {
     const file = settingsFile(JSON.stringify({ model: 'opus' }))
     applyGatewayModelList(file, ['combo-gpt'])
-    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ model: 'opus', availableModels: ['combo-gpt'] })
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
+      model: 'opus',
+      availableModels: [...ALIASES, 'combo-gpt']
+    })
   })
 
   it('refuses to rewrite a settings.json that is not a JSON object', () => {

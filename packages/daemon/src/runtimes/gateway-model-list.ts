@@ -2,15 +2,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Logger } from '../log.js'
 
-/** The one gateway field separating a combo (AgentConnect-owned) entry from a pass-through
- *  upstream (`fci/…`, `venice/…`) — the gateway owns the classification, not the id's shape. */
+/** The one gateway field separating a combo from a pass-through upstream (`fci/…`) — the gateway classifies, not the id's shape. */
 const COMBO_OWNER = 'combo'
 const DEFAULT_TIMEOUT_MS = 5_000
 
-/** The combo ids a gateway serves, or undefined when it cannot be asked. `availableModels` is the
- *  only channel that yields the combo set WHOLE — the discovery flag filters /models by the literal
- *  "claude" in the id, dropping `kimi-k-2-7-code` and leaking `ag/claude-opus-4-6-thinking`.
- *  Never throws: an unreachable gateway keeps the list it already had. */
+/** Claude Code's alias rows: `availableModels` is an allowlist, so omitting one deletes its picker row.
+ *  ponytail: hardcoded — derive from the SDK if Claude Code ever adds a seventh. */
+const BUILTIN_MODEL_ALIASES = ['opus', 'opus[1m]', 'sonnet', 'sonnet[1m]', 'haiku', 'fable']
+
+/** The combo ids a gateway serves, or undefined when it cannot be asked. Never throws. */
 export async function fetchGatewayModelList(
   baseUrl: string | undefined,
   token: string | undefined,
@@ -50,12 +50,8 @@ export async function fetchGatewayModelList(
   }
 }
 
-/** Merge the fetched list into a Claude Code settings.json, preserving every other key. The FILE is
- *  the only channel that reaches the picker — `CLAUDE_MODEL_CONFIG` lands in the SDK's flag tier,
- *  while the `configOptions` a session and the probe advertise come from `settingsManager
- *  .getSettings()`, which resolves settings FILES alone (measured: env → `["default"]`, file →
- *  every id). Rewrites while the sidecar marker says this daemon owns the list, so a refreshed
- *  gateway is followed; a hand-written list carries no marker and is never overridden. */
+/** Merge aliases + combos into settings.json, preserving every other key. A settings FILE is the only
+ *  channel that reaches the picker, and only a marker-owned list is rewritten, so an operator's survives. */
 export function applyGatewayModelList(settingsFile: string, models: readonly string[] | undefined): boolean {
   if (!models || models.length === 0) return false
   let existing: Record<string, unknown> = {}
@@ -71,7 +67,7 @@ export function applyGatewayModelList(settingsFile: string, models: readonly str
   // schema is Claude Code's to define.
   const owned = existsSync(marker)
   if (Array.isArray(existing.availableModels) && existing.availableModels.length > 0 && !owned) return false
-  const next = [...models]
+  const next = [...new Set([...BUILTIN_MODEL_ALIASES, ...models])]
   if (owned && sameList(existing.availableModels, next)) return false
   mkdirSync(dirname(settingsFile), { recursive: true, mode: 0o700 })
   writeFileSync(settingsFile, `${JSON.stringify({ ...existing, availableModels: next }, null, 2)}\n`, {
