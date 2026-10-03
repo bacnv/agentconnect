@@ -25,7 +25,9 @@ export const QuotedMessageSchema = z.object({
   sender: z.string().optional(),
   text: z.string(),
   selection: z.boolean().optional(),
-  excerpt: z.boolean().optional()
+  excerpt: z.boolean().optional(),
+  /** Files on the quoted source, carried so their bytes can reach the prompt. */
+  attachments: z.array(PlatformAttachmentSchema).optional()
 })
 export type QuotedMessage = z.infer<typeof QuotedMessageSchema>
 
