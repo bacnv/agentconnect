@@ -1223,8 +1223,7 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(conversation.key !== undefined ? { key: conversation.key } : {}),
         ...(conversation.url !== undefined ? { url: conversation.url } : {}),
         ...(conversation.dmUserId ? { dmUserId: conversation.dmUserId } : {})
-      },
-      include: CHANNEL_INCLUDE
+      }
     })
     if (conversation.externalReason !== undefined)
       await rememberExternalPlaces(this.db, integrationId, [conversation.id])
@@ -1282,8 +1281,7 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(opts?.kind ? { kind: opts.kind } : {}),
         ...(opts?.defaultTrigger ? { trigger: opts.defaultTrigger } : {})
       },
-      update: { agentId },
-      include: CHANNEL_INCLUDE
+      update: { agentId }
     })
     return (await channelRecords(this.db, [row]))[0]!
   }
@@ -1350,7 +1348,7 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
     integrationId: IntegrationId,
     channelId: string,
     threadId: string,
-    trigger: ChannelTrigger | null
+    trigger: SeedTrigger | null
   ): Promise<IntegrationChannelThreadRecord | null> {
     // updateMany → no throw on a missing row: a topic can vanish with its channel between
     // the console's read and this write, and the updateMany count IS the existence check.

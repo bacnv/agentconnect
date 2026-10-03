@@ -6314,7 +6314,7 @@ export interface IntegrationChannelRepo {
     integrationId: IntegrationId,
     channelId: string,
     threadId: string,
-    trigger: ChannelTrigger | null
+    trigger: SeedTrigger | null
   ): Promise<IntegrationChannelThreadRecord | null>
   /** Set or clear this integration row's owner marker. The orchestrator keeps
    *  exactly one row marked per shared conversation. Returns null when missing. */
