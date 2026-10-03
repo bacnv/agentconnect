@@ -137,6 +137,7 @@ function channel(over: Partial<IntegrationChannelRecord>): IntegrationChannelRec
     decisionNeedsReview: false,
     decisionDefinition: null,
     agentId: null,
+    threads: [],
     ...over
   } as IntegrationChannelRecord
 }

@@ -16,6 +16,7 @@ const integration = (id: string, agentId = A1, token = 'xoxb-one'): IntegrationS
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -65,6 +66,7 @@ describe('CpIntegrationRegistry (memory-only)', () => {
       bindRules: [],
       mutedChannels: [],
       affinityDenied: [],
+      overriddenThreads: [],
       gated: false,
       sessionModes: [],
       decisions: { bindings: [], definitions: [] }

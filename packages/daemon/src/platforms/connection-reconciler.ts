@@ -231,6 +231,12 @@ export interface ConnectionReconcilerHost extends PlatformActionSink {
   observeTelegramChat(chat: TelegramObservedChat, integrationIds: readonly string[]): Promise<void>
   /** Re-key a Telegram group the platform upgraded to a supergroup. */
   migrateTelegramChat(migration: TelegramChatMigration, integrationIds: readonly string[]): Promise<void>
+  /** Record a forum topic on its conversation's row. A topic learned from traffic has no name, so it bypasses the chat path's name gate. */
+  observeForumTopic(
+    platform: string,
+    topic: ObservedChat & { threadId: string; forumName?: string },
+    integrationIds: readonly string[]
+  ): Promise<void>
   /** Report one conversation a connection knows it reaches, ahead of any session row. */
   observePlatformChat(platform: string, chat: ObservedChat, integrationIds: readonly string[]): Promise<void>
   /** The same, for a whole set at once — one report per integration, not one per conversation. */
@@ -885,6 +891,20 @@ export class ConnectionReconciler {
           const integrationIds = new Set(group.integrations.map(({ integrationId }) => integrationId))
           for (const integrationId of this.host.srcIntegrationIds(conn)) integrationIds.add(integrationId)
           await this.host.migrateTelegramChat(migration, [...integrationIds])
+        },
+        onForumTopic: async (topic) => {
+          const integrationIds = new Set(group.integrations.map(({ integrationId }) => integrationId))
+          for (const integrationId of this.host.srcIntegrationIds(conn)) integrationIds.add(integrationId)
+          await this.host.observeForumTopic(
+            'telegram',
+            {
+              id: topic.chatId,
+              isPrivate: false,
+              threadId: topic.threadId,
+              ...(topic.name ? { forumName: topic.name } : {})
+            },
+            [...integrationIds]
+          )
         },
         onCallback: (cb) => this.host.handleTelegramCallback(cb, conn),
         log: this.log

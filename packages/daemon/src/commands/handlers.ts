@@ -509,7 +509,7 @@ export class CommandHandlers {
         // conversation fenced to explicit addresses, "the channel's latest session" is
         // exactly the continuity the fence exists to refuse. Not in commandSenderAllowed,
         // which also gates ladder-resolved targets — those ARE addresses.
-        if (!affinityAdmits(integrationRouting(integration).affinityDenied, agentId, msg)) continue
+        if (!affinityAdmits(integrationRouting(integration), agentId, msg)) continue
         const latest = await this.host.store().latestSessionForTransport(agentId, msg.channel, transportScope, thread)
         if (latest) candidates.push({ agentId, integrationId: integration.id, updatedAt: latest.updatedAt })
       }
@@ -595,7 +595,8 @@ export class CommandHandlers {
     // Control commands resolve their target OUTSIDE routeRules' scope filter (latest-
     // session fallbacks), so they must repeat the admission check — a channel switched
     // Off, or an Off conversation of a gated integration, takes no commands either.
-    return conversationAdmitted(routing, msg.channel)
+    // A topic-level Off is the new instance of exactly that.
+    return conversationAdmitted(routing, msg.channel, msg.thread)
   }
 
   /**
@@ -1148,7 +1149,8 @@ export class CommandHandlers {
     const session = await this.commandSessionForLatest(
       cb.channel,
       srcIntegrationIds,
-      this.host.transportScopeForIntegrationIds(srcIntegrationIds)
+      this.host.transportScopeForIntegrationIds(srcIntegrationIds),
+      cb.topicId
     )
     if (!session) {
       void conn.answerCallback(cb.id, 'No active session here.')
@@ -1207,12 +1209,17 @@ export class CommandHandlers {
 
   /** The agents whose own-platform integrations admit this conversation — one entry each,
    *  whichever of its integrations qualified. */
-  private admittedAgentIds(platform: string, channel: string, srcIntegrationIds: readonly string[]): string[] {
+  private admittedAgentIds(
+    platform: string,
+    channel: string,
+    srcIntegrationIds: readonly string[],
+    thread: string | undefined
+  ): string[] {
     const agentIds: string[] = []
     for (const [agentId, agent] of this.host.agents()) {
       for (const integration of agent.integrations) {
         if (integration.platform !== platform || !srcIntegrationIds.includes(integration.id)) continue
-        if (!conversationAdmitted(integrationRouting(integration), channel)) continue
+        if (!conversationAdmitted(integrationRouting(integration), channel, thread)) continue
         agentIds.push(agentId)
         break
       }
@@ -1229,7 +1236,7 @@ export class CommandHandlers {
     thread?: string
   ): Promise<SessionRecord[]> {
     const candidates: SessionRecord[] = []
-    for (const agentId of this.admittedAgentIds(platform, channel, srcIntegrationIds)) {
+    for (const agentId of this.admittedAgentIds(platform, channel, srcIntegrationIds, thread)) {
       const session = await this.host.store().latestSessionForTransport(agentId, channel, transportScope, thread)
       if (session) candidates.push(session)
     }
@@ -1241,9 +1248,10 @@ export class CommandHandlers {
   async commandSessionForLatest(
     channel: string,
     srcIntegrationIds: readonly string[],
-    transportScope?: string
+    transportScope?: string,
+    thread?: string
   ): Promise<{ agentId: string; key: string; acpSessionId?: string } | null> {
-    const latest = await this.latestAdmittedSession('telegram', channel, srcIntegrationIds, transportScope)
+    const latest = await this.latestAdmittedSession('telegram', channel, srcIntegrationIds, transportScope, thread)
     return latest ? { agentId: latest.agentId, key: latest.key, acpSessionId: latest.acpSessionId ?? undefined } : null
   }
 
@@ -1276,7 +1284,7 @@ export class CommandHandlers {
       if (!integration) continue
       // The gesture names no message, so the channel id alone tells a DM from a room.
       const kind = this.host.rootCoordinateKind(agentId, integration.id, { channel, isDm: false, isGroupDm: false })
-      if (kind === undefined || !conversationAdmitted(integrationRouting(integration), channel)) continue
+      if (kind === undefined || !conversationAdmitted(integrationRouting(integration), channel, undefined)) continue
       // Read-only first: a conversation nobody has spoken in has nothing to rotate, and its first message mints anyway.
       const current = await this.host.store().currentAppendCoordinate(agentId, channel, transportScope, kind)
       if (current === undefined) continue
@@ -1309,7 +1317,7 @@ export class CommandHandlers {
   ): Promise<string[]> {
     const transportScope = this.host.transportScopeForIntegrationIds(srcIntegrationIds)
     const keys: string[] = []
-    for (const agentId of this.admittedAgentIds('slack', shortcut.channel, srcIntegrationIds)) {
+    for (const agentId of this.admittedAgentIds('slack', shortcut.channel, srcIntegrationIds, shortcut.thread)) {
       // The tapped thread holds no session where the conversation appends — its session is
       // at the coordinate in force — so Stop would cancel nothing. Read-only: a Stop click
       // must not create the conversation it is trying to interrupt.

@@ -1003,6 +1003,14 @@ export type ChannelTrigger = 'off' | 'mention' | 'mention_topic' | 'any' | 'deci
 /** Which session a conversation's message joins (channel-session-mode.md); `auto` hands each to the coordinator (auto-session-mode.md). */
 export type ChannelSessionMode = 'createNew' | 'append' | 'auto'
 
+/** One configurable thread of a conversation — a Telegram forum topic. `trigger: null` =
+ *  inherit the conversation's, which is also what clearing an override returns it to. */
+export interface IntegrationChannelThreadDto {
+  threadId: string
+  name: string | null
+  trigger: Exclude<ChannelTrigger, 'decision'> | null
+}
+
 // One conversation the integration's bot is in (daemon-reported) + its trigger
 // choice. kind 'im' rows are DM conversations and 'mpim' rows are Slack group DMs;
 // both are observed rather than enumerable and appear for every agent visibility.
@@ -1024,6 +1032,7 @@ export interface IntegrationChannelDto {
   decision?: ChannelDecisionView | null
   sessionMode: ChannelSessionMode
   agentId: string | null // effective shared-conversation owner; null before convergence / when not applicable
+  threads?: IntegrationChannelThreadDto[] // the conversation's own topics, where the platform has them
 }
 
 /** A By decision row's bound Decision: its visible name, whether it runs, and the consumer's readiness. */
@@ -5424,6 +5433,23 @@ export async function updateIntegrationChannel(
 ): Promise<IntegrationChannelDto> {
   return apiPatch<IntegrationChannelDto>(
     `${orgBase(orgId)}/integrations/${encodeURIComponent(integrationId)}/channels/${encodeURIComponent(channelId)}`,
+    patch
+  )
+}
+
+// Per-topic trigger choice (`PATCH /integrations/:id/channels/:channelId/threads/:threadId`).
+// `trigger: null` clears the override, returning the topic to its group's trigger.
+export async function updateIntegrationChannelThread(
+  integrationId: string,
+  channelId: string,
+  threadId: string,
+  patch: { trigger: ChannelTrigger | null },
+  orgId?: string
+): Promise<IntegrationChannelThreadDto> {
+  return apiPatch<IntegrationChannelThreadDto>(
+    `${orgBase(orgId)}/integrations/${encodeURIComponent(integrationId)}/channels/${encodeURIComponent(
+      channelId
+    )}/threads/${encodeURIComponent(threadId)}`,
     patch
   )
 }
