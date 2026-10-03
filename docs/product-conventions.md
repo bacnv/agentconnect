@@ -539,6 +539,49 @@ a caption lost after it is reported as a notice on an otherwise successful send 
 as a failure. The agent is never told nothing was sent while its words sit in the
 conversation, because it would retry and post them twice.
 
+### Scheduling the agent itself
+
+An agent can schedule **itself**: wake on a recurring schedule and decide what to do when it
+fires. This is not `scheduleMessage`, which hands the platform a fixed message to post at a
+fixed time — the words are written once and the platform delivers them verbatim. A wake hands
+the agent a prompt instead, and the agent produces the message then, from what is true then.
+That difference is also why the two are not offered everywhere: a scheduled post needs a
+platform primitive Telegram does not have, while a wake needs nothing from the platform at all,
+so an agent on any platform can schedule itself.
+
+What makes the wake worth having is that it lives in AgentConnect rather than in the agent's
+session. It keeps firing after the session that created it has ended and while nobody is
+watching, which is exactly what a scheduler inside the agent's own runtime cannot promise — that
+one dies with the session it was started in.
+
+A scheduled wake posts into **the conversation the agent was answering when it scheduled**,
+and nowhere else. The agent cannot name a channel, a thread, or a different bot: those
+coordinates come from the conversation itself, not from anything the agent supplies. A session
+with no conversation of its own — an internal wake with no platform behind it — cannot schedule
+at all, and is refused rather than handed a schedule whose fires would have nowhere to land. The
+fire arrives in that conversation as a new thread, so a daily greeting does not revive the
+thread that asked for it.
+
+The timezone is the person's, not the agent's guess. The agent must state a named zone and
+cannot leave it out or fall back to one nobody chose; where the person has not said, the agent
+is expected to ask.
+
+Afterwards it is also the operator's, like any other scheduled task: an ordinary row in the Crons
+view — same list, same detail page, same controls — showing no human creator, because no human
+made it. The control plane's audit record names the authoring agent, so an agent-authored
+schedule is attributable even though the console attributes nothing to a person. It can be
+disabled or deleted there like anything else. A wake is not a loop — nothing about it re-arms
+itself — but an agent that schedules many is visible in that one list, which is where an operator
+would notice.
+
+It is still the author's, though, and the agent can retire it: a schedule it created by mistake
+is one only a human could have undone otherwise, which would make cleanup the operator's job
+every time. The rule is authorship, not reach — an agent can cancel a cron **it** authored, and
+never one a person set up in the console, even when it serves that schedule. The refusal is
+reported as an answer rather than an error, because "that is not yours to remove" is something
+the agent should say out loud, not a fault it has to guess at. Cancelling is final; there is no
+undo, and a deleted schedule is re-created by authoring a new one.
+
 ## Self-authored channel roots
 
 When an agent uses `sendMessage` to publish a new channel-root message without waking

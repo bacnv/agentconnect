@@ -8,7 +8,8 @@ import {
   optionalString,
   parseArgs,
   requiredString,
-  requiredStringAllowEmpty
+  requiredStringAllowEmpty,
+  unexpectedKeys
 } from './args.js'
 import type { MemoryProvider, MemoryScope } from '../../memory/provider.js'
 import type { MemoryWriteSource } from '../../memory/store.js'
@@ -105,14 +106,6 @@ export function memoryWriteAsk(tool: string, args: Record<string, unknown>): Mem
     default:
       return { tool, target: 'shared memory', summary: '' }
   }
-}
-
-/** A stray key here is almost always the sibling file tool's argument; refuse it by name (#1921). */
-const unexpectedKeys: { error: z.core.$ZodErrorMap } = {
-  error: (issue) =>
-    issue.code === 'unrecognized_keys'
-      ? `unexpected argument${issue.keys.length > 1 ? 's' : ''}: ${issue.keys.join(', ')}`
-      : undefined
 }
 
 /** `readMemory` arguments; an omitted `path` reads the MEMORY.md index. */

@@ -26,7 +26,12 @@ export const CronTarget = z.object({
   // The agent integration whose connection posts the anchor — targets come from
   // the owning agent's integrations, so the daemon posts through the right bot
   // when the agent has several. Absent (legacy defs) ⇒ first integration.
-  integrationId: z.string().uuid().optional()
+  integrationId: z.string().uuid().optional(),
+  // The forum/topic container the conversation lived in, where the platform has one: a fire must
+  // land inside it, not at the chat root (Telegram General). Slack's thread_ts is a
+  // sub-conversation and is never sent — a wake opens a new thread rather than revive the one that
+  // asked. Optional and unstrict, so an older CP strips it and degrades to the prior behaviour.
+  thread: z.string().optional()
 })
 export type CronTarget = z.infer<typeof CronTarget>
 
@@ -86,3 +91,59 @@ export const CronRunNow = z.object({
   cronId: z.string().uuid()
 })
 export type CronRunNow = z.infer<typeof CronRunNow>
+
+/**
+ * `cron/author` (D→C REQ → `cron/author/ok`) — an agent schedules ITSELF, through the
+ * conversation it is answering (docs/superpowers/specs/2026-09-26-agent-authored-cron-design.md).
+ * Deliberately not named `cron/upsert`: that frame is C→D, and one name for two directions is
+ * the ambiguity `FRAME_SCHEMAS` exists to prevent.
+ *
+ * `target` is REQUIRED and is filled by the daemon from the trusted session context, never
+ * from tool input. `timezone` is required and never defaulted: an omission would put a
+ * schedule on a clock nobody chose (see `http/routes/crons.ts`).
+ */
+export const CronAuthor = z.object({
+  // Idempotency: the CP derives the cron id from (orgId, agentId, requestId), so a REQ the
+  // correlator re-sent after a dropped reply answers the SAME cron instead of minting a second.
+  requestId: z.string().uuid(),
+  agentId: z.string().uuid(), // the authoring agent — routes the def to its daemon and fences the write
+  name: z.string().min(1).max(120).optional(), // console label only; never on the fire path
+  schedule: z.string().min(1), // croner expression interpreted in `timezone`
+  timezone: z.string().min(1), // resolved IANA zone — a fixed offset is refused by the CP
+  trigger: z.string().min(1), // the synthetic prompt the fire injects
+  target: CronTarget // always present: an authored cron posts into the conversation it was authored in
+})
+export type CronAuthor = z.infer<typeof CronAuthor>
+
+/** `nextRun` is the value the CP resolved while validating — the agent can tell the person when it will fire. */
+export const CronAuthorOk = z.object({
+  cronId: z.string().uuid(),
+  schedule: z.string(),
+  timezone: z.string(),
+  nextRun: z.string().datetime()
+})
+export type CronAuthorOk = z.infer<typeof CronAuthorOk>
+
+/**
+ * `cron/cancel` (D→C REQ → `cron/cancel/ok`) — the agent that authored a cron retires it. The
+ * counterpart of `cron/author`: a tool that can only create is one whose mistakes only a human
+ * can undo, which is the same objection that retired the model-pin proposal.
+ *
+ * Not named `cron/remove`: that frame is C→D, and one name for two directions is the ambiguity
+ * `FRAME_SCHEMAS` exists to prevent (the reason `cron/author` is not `cron/upsert`).
+ *
+ * Authority is the cron itself, not the caller's claim: the handler requires
+ * `cron.agentId === agentId` AND `cron.createdByUserId === null`, so an agent retires what it
+ * authored and never a schedule a human owns. `agentId` rides the payload only to scope the
+ * lookup; the fence reads the STORED row.
+ */
+export const CronCancel = z.object({
+  cronId: z.string().uuid(),
+  agentId: z.string().uuid()
+})
+export type CronCancel = z.infer<typeof CronCancel>
+
+/** `removed: false` means the cron is not this agent's to retire (unknown, foreign, or
+ *  human-authored) — a refusal the agent can report, not a wire error it must guess at. */
+export const CronCancelOk = z.object({ removed: z.boolean() })
+export type CronCancelOk = z.infer<typeof CronCancelOk>

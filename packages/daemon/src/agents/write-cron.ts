@@ -33,7 +33,8 @@ export function toCronDef(cron: CronUpsert): CronDef {
           target: {
             platform: cron.target.platform,
             channel: cron.target.channel,
-            ...(cron.target.integrationId ? { integrationId: cron.target.integrationId } : {})
+            ...(cron.target.integrationId ? { integrationId: cron.target.integrationId } : {}),
+            ...(cron.target.thread ? { thread: cron.target.thread } : {})
           }
         }
       : {}),

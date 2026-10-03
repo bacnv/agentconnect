@@ -2877,6 +2877,9 @@ export const UpsertCronBody = z.object({
   // Optional output routing: post the trigger there and thread the agent's
   // replies under it. Absent/empty ⇒ headless fire.
   targetChannel: z.string().min(1).optional(),
+  // The forum/topic container the fire posts INSIDE — a Telegram topic id. A console edit that
+  // omits it keeps the stored value, so editing a schedule cannot move its fires to General.
+  targetThread: z.string().min(1).optional(),
   // The agent integration whose connection posts the anchor — must be one of
   // the cron's agent's integrations (validated in the route); the stored
   // platform is derived from it. Meaningful only with a targetChannel.
@@ -2899,6 +2902,7 @@ export const CronDto = z.object({
   timezone: z.string(),
   targetPlatform: Platform,
   targetChannel: z.string().nullable(),
+  targetThread: z.string().nullable(), // the forum/topic container the fire posts inside; null elsewhere
   targetIntegrationId: z.string().nullable(), // null ⇒ legacy / integration uninstalled
   trigger: z.string(),
   enabled: z.boolean(),

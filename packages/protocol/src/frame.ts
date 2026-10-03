@@ -29,7 +29,16 @@ import {
   AgentWakeReq,
   AgentWakeOk
 } from './frames/agent.js'
-import { CronUpsert, CronRemove, CronReport, CronRunNow } from './frames/cron.js'
+import {
+  CronUpsert,
+  CronRemove,
+  CronReport,
+  CronRunNow,
+  CronAuthor,
+  CronAuthorOk,
+  CronCancel,
+  CronCancelOk
+} from './frames/cron.js'
 import {
   DutyGrant,
   DutyRenewed,
@@ -339,6 +348,10 @@ export const FRAME_SCHEMAS = {
   'cron/remove': CronRemove,
   'cron/report': CronReport,
   'cron/run': CronRunNow,
+  'cron/author': CronAuthor,
+  'cron/author/ok': CronAuthorOk,
+  'cron/cancel': CronCancel,
+  'cron/cancel/ok': CronCancelOk,
   // ── hooks (content fires ride rd/*; only metadata/effect control is here) ──
   'hook/report': HookReport,
   'hook/preparing': HookPreparing,
@@ -688,6 +701,10 @@ export const AnyFrame = z.discriminatedUnion('type', [
   frame('cron/remove', FRAME_SCHEMAS['cron/remove']),
   frame('cron/report', FRAME_SCHEMAS['cron/report']),
   frame('cron/run', FRAME_SCHEMAS['cron/run']),
+  frame('cron/author', FRAME_SCHEMAS['cron/author']),
+  frame('cron/author/ok', FRAME_SCHEMAS['cron/author/ok']),
+  frame('cron/cancel', FRAME_SCHEMAS['cron/cancel']),
+  frame('cron/cancel/ok', FRAME_SCHEMAS['cron/cancel/ok']),
   frame('hook/report', FRAME_SCHEMAS['hook/report']),
   frame('hook/preparing', FRAME_SCHEMAS['hook/preparing']),
   frame('hook/preparing/ok', FRAME_SCHEMAS['hook/preparing/ok']),

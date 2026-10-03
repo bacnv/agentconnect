@@ -52,6 +52,8 @@ import {
   AGENT_CONFIG_REVISION_FEATURE,
   APPROVAL_DM_ROUTE_V1_FEATURE,
   DAEMON_BOOTSTRAP_UPGRADE_FEATURE,
+  AGENT_CRON_AUTHOR_FEATURE,
+  AGENT_CRON_CANCEL_FEATURE,
   GITCRED_GITHUB_V2_FEATURE,
   GITEA_V1_FEATURE,
   GITLAB_EFFECT_V1_FEATURE,
@@ -337,6 +339,7 @@ import { compoundMentionAddressesFor } from './platforms/mention-address.js'
 import {
   rootPostNeedsThreadMaterialization,
   rootPostThreadName,
+  threadContainerFor,
   threadKeyForPost,
   threadRootResolver
 } from './platforms/thread-keys.js'
@@ -3786,6 +3789,20 @@ export class Daemon {
         if (!client) throw Object.assign(new Error('control plane is not connected'), { code: 'INTERNAL' })
         return client.orgSkills(req)
       },
+      // scheduleCron (agent-authored-cron-design.md §6): the payload is built wholly from the
+      // trusted session context inside the op — the model supplies only schedule/timezone/prompt/name.
+      authorCron: async (req) => {
+        const client = this.cpClient
+        if (!client) throw new Error('control plane is not connected')
+        return await client.authorCron(req)
+      },
+      // cancelCron: the agentId is the SESSION's, read inside the op from trusted context; the CP
+      // re-reads the stored row and refuses anything that agent did not author.
+      cancelCron: async (req) => {
+        const client = this.cpClient
+        if (!client) throw new Error('control plane is not connected')
+        return await client.cancelCron(req)
+      },
       // Agent→agent wake (§2.2). Same-daemon delivery only in P1; the daemon owns the
       // trusted caller identity + policy check + dispatch (a target elsewhere gets
       // reason:'not_local' — cross-daemon relay is P2).
@@ -4142,6 +4159,8 @@ export class Daemon {
         const servers: McpServer[] = []
         let tools = toolsForIntegrations(agent.integrations, {
           organizationKnowledge: this.cpClient?.supportsServerFeature?.(ORGANIZATION_KNOWLEDGE_FEATURE) === true,
+          cronAuthor: this.cpClient?.supportsServerFeature?.(AGENT_CRON_AUTHOR_FEATURE) === true,
+          cronCancel: this.cpClient?.supportsServerFeature?.(AGENT_CRON_CANCEL_FEATURE) === true,
           decisions:
             !!agent.decisionIds?.length && this.cpClient?.supportsServerFeature?.(DECISION_TOOLS_V1_FEATURE) === true,
           currentPlatform: platform
@@ -23035,7 +23054,7 @@ export class Daemon {
   private async anchorTrigger(
     agentId: string,
     msg: NormalizedMessage,
-    target: { channel?: string; integrationId?: string } | undefined,
+    target: { channel?: string; integrationId?: string; thread?: string } | undefined,
     anchorText: string,
     label: string,
     safetyReviewLane?: string
@@ -23095,9 +23114,11 @@ export class Daemon {
               })
             : undefined
           postAttempted = true
+          // A Telegram forum topic: the anchor must land INSIDE it — posted outside it files under General.
+          const container = threadContainerFor(msg.platform, target.thread)
           const ts = options
-            ? await (conn as SlackConnection).postMessage(target.channel, anchorText, undefined, options)
-            : await conn.postMessage(target.channel, anchorText)
+            ? await (conn as SlackConnection).postMessage(target.channel, anchorText, container, options)
+            : await conn.postMessage(target.channel, anchorText, container)
           if (ts) {
             const mustMaterializeThread = !isDmTarget && rootPostNeedsThreadMaterialization(msg.platform)
             let thread: string | undefined
@@ -23121,7 +23142,8 @@ export class Daemon {
                 return { message: null, postAttempted }
               }
             } else {
-              thread = threadKeyForPost(msg.platform, target.channel, ts, isDmTarget)
+              // Inside a container the session keys on the CONTAINER, matching inbound canonicalization.
+              thread = container ?? threadKeyForPost(msg.platform, target.channel, ts, isDmTarget)
             }
             // The posted anchor is both the thread root and the authoritative
             // transcript/read cursor. Keep the synthetic msgId as the durable turn id.
@@ -23142,7 +23164,7 @@ export class Daemon {
   private async fireTrigger(
     agentId: string,
     msg: NormalizedMessage,
-    target: { channel?: string; integrationId?: string } | undefined,
+    target: { channel?: string; integrationId?: string; thread?: string } | undefined,
     anchorText: string,
     label: string,
     onSessionReady?: (sessionId: string) => void

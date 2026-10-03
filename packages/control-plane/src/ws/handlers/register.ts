@@ -23,6 +23,8 @@ import {
   AGENT_PLACEMENT_FEATURE,
   AGENT_MEMORY_HISTORY_READ_V1_FEATURE,
   AGENT_MEMORY_STORE_V1_FEATURE,
+  AGENT_CRON_AUTHOR_FEATURE,
+  AGENT_CRON_CANCEL_FEATURE,
   APPROVAL_DM_ROUTE_V1_FEATURE,
   CODEHOST_NOTE_PROJECTION_V1_FEATURE,
   CODEHOST_REVIEW_V1_FEATURE,
@@ -152,6 +154,8 @@ export const handleRegister: Handler = async (frame, conn, deps) => {
       MEMORY_CAPTURE_FENCE_V1_FEATURE,
       // session-executors.md §6: this CP serves `executor/candidates` and relays `executor/prepare`; a holder must not send either before seeing this.
       SESSION_EXECUTORS_V1_FEATURE,
+      AGENT_CRON_AUTHOR_FEATURE,
+      AGENT_CRON_CANCEL_FEATURE,
       // A daemon socket reports explicit credential-lifecycle events only to a CP that applies them.
       ...(deps.socketBotRevocation ? [INTEGRATION_REVOKED_FEATURE] : [])
     ]

@@ -152,7 +152,8 @@ export function cronToUpsert(c: CronRecord): CronUpsert | null {
           target: {
             platform: toDbPlatform(c.targetPlatform),
             channel: c.targetChannel,
-            ...(c.targetIntegrationId ? { integrationId: c.targetIntegrationId } : {})
+            ...(c.targetIntegrationId ? { integrationId: c.targetIntegrationId } : {}),
+            ...(c.targetThread ? { thread: c.targetThread } : {})
           }
         }
       : {}),
