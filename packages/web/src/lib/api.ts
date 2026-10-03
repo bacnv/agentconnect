@@ -5446,7 +5446,7 @@ export async function updateIntegrationChannelThread(
   integrationId: string,
   channelId: string,
   threadId: string,
-  patch: { trigger: ChannelTrigger | null },
+  patch: { trigger: Exclude<ChannelTrigger, 'decision'> | null },
   orgId?: string
 ): Promise<IntegrationChannelThreadDto> {
   return apiPatch<IntegrationChannelThreadDto>(
