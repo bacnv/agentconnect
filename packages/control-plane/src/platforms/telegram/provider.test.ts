@@ -101,7 +101,8 @@ const channel = (
   decisionBinding: null,
   decisionNeedsReview: false,
   decisionDefinition: null,
-  agentId: null
+  agentId: null,
+  threads: []
 })
 
 // §9 adoption: the live spec path reaches this provider THROUGH the registry, so
@@ -251,6 +252,7 @@ describe('telegram projection equivalence with the live integrationToSpec path',
         bindRules,
         mutedChannels: ['-300'],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: false,
         sessionModes: [],
         externalChannels: [],

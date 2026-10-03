@@ -26,6 +26,7 @@ const spec: IntegrationSpec = {
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
