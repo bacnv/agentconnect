@@ -5426,7 +5426,7 @@ export function isDirectConversationKind(kind: ConversationKind | undefined): bo
 export interface IntegrationChannelThreadRecord {
   threadId: string
   name: string | null
-  trigger: ChannelTrigger | null
+  trigger: SeedTrigger | null
 }
 
 /** One conversation the integration's bot participates in, as reported by the daemon. */
@@ -5581,7 +5581,7 @@ export interface IntegrationChannelRepo {
     integrationId: IntegrationId,
     channelId: string,
     threadId: string,
-    trigger: ChannelTrigger | null
+    trigger: SeedTrigger | null
   ): Promise<IntegrationChannelThreadRecord | null>
   /** Set or clear this integration row's owner marker. The orchestrator keeps
    *  exactly one row marked per shared conversation. Returns null when missing. */

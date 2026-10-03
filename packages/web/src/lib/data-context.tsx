@@ -270,7 +270,7 @@ interface ConsoleData {
     integrationId: string,
     channelId: string,
     threadId: string,
-    trigger: ChannelTrigger | null
+    trigger: Exclude<ChannelTrigger, 'decision'> | null
   ) => Promise<void>
   /** Save a By decision gate (trigger + binding in one PATCH) and project the returned row. */
   setChannelDecision: (integrationId: string, channelId: string, gate: ChannelDecisionGate) => Promise<void>
@@ -1506,7 +1506,12 @@ export function ConsoleDataProvider({ children }: { children: ReactNode }) {
   // Set or clear one topic's trigger, with the same bot-wide projection the conversation
   // toggle uses so a shared bot cannot disagree with itself between installs.
   const setThreadTrigger = useCallback(
-    async (integrationId: string, channelId: string, threadId: string, trigger: ChannelTrigger | null) => {
+    async (
+      integrationId: string,
+      channelId: string,
+      threadId: string,
+      trigger: Exclude<ChannelTrigger, 'decision'> | null
+    ) => {
       await apiUpdateIntegrationChannelThread(integrationId, channelId, threadId, { trigger })
       settleInBackground(
         mutateIntegrations(

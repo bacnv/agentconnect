@@ -391,7 +391,9 @@ describe('affinityDenied reaches the ladder from agent.json', () => {
             mutedChannels: [],
             affinityDenied: ['-100'],
             overriddenThreads: [],
-            gated: false
+            gated: false,
+            sessionModes: [],
+            decisions: { bindings: [], definitions: [] }
           },
           config: { botToken: '123:abc', botUsername: 'mybot' }
         }
