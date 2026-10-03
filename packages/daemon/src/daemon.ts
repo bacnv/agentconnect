@@ -542,7 +542,6 @@ import { applyGatewayModelList, fetchGatewayModelList } from './runtimes/gateway
 import { ModelCatalogService } from './runtimes/model-catalog.js'
 import { makeModelEnumerator } from './runtimes/model-enumerator.js'
 import { clusterProbeHostFactory, defaultProbeHostFactory } from './acp/probe-host-factory.js'
-import { runtimeHomePath } from './runtimes/runtime-home.js'
 import { resolveClaudeConfigSources } from './runtimes/runtime-credential-sources.js'
 import { sessionMcpServersScope } from './runtimes/session-mcp-servers.js'
 import { planRuntimeInstallRepair, repairRuntimeInstall } from './runtimes/runtime-install-repair.js'
