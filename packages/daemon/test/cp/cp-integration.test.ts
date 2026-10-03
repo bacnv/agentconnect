@@ -85,6 +85,7 @@ const INTEGRATION: IntegrationSpec = {
     mode: 'direct',
     bindRules: [{ match: { kind: 'mention' } }],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }

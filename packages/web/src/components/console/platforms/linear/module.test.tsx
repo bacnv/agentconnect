@@ -87,6 +87,7 @@ describe('the linear transcript and card semantics', () => {
     expect(channelListSemantics('linear').triggers).toEqual(['off', 'mention', 'decision'])
     // By decision gates each team's owner; a Linear bot has no router.
     expect(channelListSemantics('linear').sharedDecision).toBe('conversation')
+    expect(channelListSemantics('linear').triggers).not.toContain('mention_topic')
   })
 
   it('warns before a team’s default leaves a private agent', () => {
@@ -134,7 +135,7 @@ describe('the linear transcript and card semantics', () => {
     for (const m of platformRegistry.all()) {
       if (m.platformId === 'linear') continue
       expect(m.channelList?.roster, m.platformId).toBeUndefined()
-      if (m.platformId !== 'googlechat') expect(m.channelList?.triggers, m.platformId).toBeUndefined()
+      if (!['googlechat', 'telegram'].includes(m.platformId)) expect(m.channelList?.triggers, m.platformId).toBeUndefined()
       expect(m.channelList?.ownerChangeWarning, m.platformId).toBeUndefined()
       expect(m.channelList?.gatedNote, m.platformId).toBeUndefined()
     }

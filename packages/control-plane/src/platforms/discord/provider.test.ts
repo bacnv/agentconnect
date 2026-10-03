@@ -300,6 +300,7 @@ describe('discord projection equivalence with the live integrationToSpec path', 
         mode: 'direct',
         bindRules,
         mutedChannels: ['C3'],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }

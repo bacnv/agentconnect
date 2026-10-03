@@ -2185,7 +2185,7 @@ export interface IntegrationChannelRow {
   /** 'im' = a DM conversation row, 'mpim' = a Slack group DM; absent = channel. */
   kind?: 'channel' | 'im' | 'mpim'
   /** 'decision' is By decision; its binding and readiness ride along in decisionBinding/decision. */
-  trigger: 'off' | 'mention' | 'any' | 'decision'
+  trigger: 'off' | 'mention' | 'mention_topic' | 'any' | 'decision'
   decisionBinding?: ChannelDecisionBinding | null
   decision?: ChannelDecisionView | null
   /** Which session a message here joins: a new one per thread, or the conversation's one

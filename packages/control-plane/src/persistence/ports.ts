@@ -5279,7 +5279,7 @@ export interface ChannelPlacementRecord {
 // and ids are control metadata, never message content.
 // ───────────────────────────────────────────────────────────────────────────
 
-export type ChannelTrigger = 'off' | 'mention' | 'any' | 'decision'
+export type ChannelTrigger = 'off' | 'mention' | 'mention_topic' | 'any' | 'decision'
 
 /** A trigger a row can be seeded or defaulted to; By decision is only ever chosen, with its binding. */
 export type SeedTrigger = Exclude<ChannelTrigger, 'decision'>

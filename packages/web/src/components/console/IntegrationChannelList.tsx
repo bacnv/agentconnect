@@ -108,6 +108,11 @@ function RowSettings({
               hint: translate('trigger.anyMessageHint', { room: here })
             },
             {
+              value: 'mention_topic',
+              label: translate('trigger.mentionTopic'),
+              hint: translate('trigger.mentionTopicHint', { room: here })
+            },
+            {
               value: 'decision',
               label: translate('trigger.decision'),
               hint: translate('trigger.decisionHint', { room: here })
@@ -119,7 +124,9 @@ function RowSettings({
           // + Decision is the row's way into a gate, so By decision is listed only to name a stored one.
           o.value === 'decision'
             ? channel.trigger === 'decision'
-            : !semantics.triggers || semantics.triggers.includes(o.value)
+            : o.value === 'mention_topic'
+              ? !!semantics.triggers?.includes(o.value)
+              : !semantics.triggers || semantics.triggers.includes(o.value)
         )
   // A direct conversation is one continuous exchange already, so only a channel row chooses its session.
   const sessions = isDirectConversation(channel.kind)

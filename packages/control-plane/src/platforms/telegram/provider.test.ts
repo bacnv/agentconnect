@@ -249,6 +249,7 @@ describe('telegram projection equivalence with the live integrationToSpec path',
         mode: 'direct',
         bindRules,
         mutedChannels: ['-300'],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }

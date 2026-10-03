@@ -925,8 +925,9 @@ export interface SlackConfigInput {
 }
 
 // How the bot activates in one conversation: not at all ('off' — conversation
-// gating for restricted agents), only when @-mentioned, or on any message.
-export type ChannelTrigger = 'off' | 'mention' | 'any'
+// gating for restricted agents), only when @-mentioned, on any message, or only on
+// an explicit address — an @-mention or a reply to the agent's own message.
+export type ChannelTrigger = 'off' | 'mention' | 'mention_topic' | 'any' | 'decision'
 
 /** Which session an activation in a conversation joins (channel-session-mode.md). Orthogonal
  *  to the trigger: that decides WHETHER the agent responds, this decides which session it

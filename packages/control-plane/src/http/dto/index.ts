@@ -981,7 +981,7 @@ export const IntegrationChannelDto = z.object({
   url: z.string().nullable(),
   isPrivate: z.boolean(),
   kind: z.enum(['channel', 'im', 'mpim']),
-  trigger: z.enum(['off', 'mention', 'any', 'decision']),
+  trigger: z.enum(['off', 'mention', 'mention_topic', 'any', 'decision']),
   /** The By decision consumer (a gate, or the bot's shared router); present exactly when `trigger` is 'decision'. */
   decisionBinding: ChannelDecisionBinding.nullable(),
   /** The effective By decision consumer and its deployment readiness; null for any other trigger. */
@@ -1876,7 +1876,7 @@ export const SlackAppFinalizeBody = z.object({
  *  At least one field; an active shared channel always has an owner. */
 export const UpdateIntegrationChannelBody = z
   .object({
-    trigger: z.enum(['off', 'mention', 'any', 'decision']).optional(),
+    trigger: z.enum(['off', 'mention', 'mention_topic', 'any', 'decision']).optional(),
     // The complete By decision gate; required with, and only with, trigger 'decision'.
     decisionBinding: ChannelDecisionGate.safeExtend({ decisionId: z.string().uuid() }).optional(),
     sessionMode: z.enum(['createNew', 'append']).optional(),

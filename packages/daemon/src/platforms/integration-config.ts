@@ -82,6 +82,9 @@ export interface IntegrationCore {
    *  assembled by hand rather than parsed (a fixture, a caller mapping a
    *  partial spec) still reads as "nothing muted" when the field is absent. */
   mutedChannels: string[]
+  /** Conversations that admit only an explicit address. Normalized here for the same
+   *  reason `mutedChannels` is: a hand-assembled integration has no parsed default. */
+  affinityDenied: string[]
   gated: boolean
   /** Conversations whose session mode departs from `createNew` (channel-session-mode.md).
    *  Sparse, and normalized to [] here so a hand-assembled integration reads as all-default. */
@@ -160,6 +163,7 @@ export function integrationCore(int: Integration): IntegrationCore {
     mode: core?.mode ?? 'direct',
     bindRules: core?.bindRules ?? [],
     mutedChannels: core?.mutedChannels ?? [],
+    affinityDenied: core?.affinityDenied ?? [],
     gated: core?.gated ?? false,
     sessionModes: core?.sessionModes ?? [],
     decisions: core?.decisions ?? EMPTY_DECISION_BUNDLE

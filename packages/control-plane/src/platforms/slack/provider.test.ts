@@ -539,6 +539,7 @@ describe('slack projection equivalence with the live integrationToSpec path (dir
         mode: 'direct',
         bindRules,
         mutedChannels: ['C3'],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }
@@ -618,6 +619,7 @@ describe('slack projection equivalence with the live httpIntegrationToSpec path 
         mode: 'shared',
         bindRules: [],
         mutedChannels: ['C2'],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }

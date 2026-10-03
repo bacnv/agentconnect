@@ -440,6 +440,7 @@ describe('feishu projection equivalence with the live integrationToSpec path (di
         mode: 'direct',
         bindRules,
         mutedChannels: ['oc_3'],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }
@@ -524,6 +525,7 @@ describe('feishu projection equivalence with the live httpIntegrationToSpec path
         mode: 'shared',
         bindRules: [],
         mutedChannels: ['oc_2'],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }

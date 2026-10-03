@@ -184,6 +184,8 @@ export const IntegrationCoreEnvelope = z.object({
   mode: z.enum(['direct', 'shared']).default('direct'),
   bindRules: z.array(IntegrationBindRule).default([]),
   mutedChannels: z.array(z.string()).default([]),
+  // Conversations denying implicit continuity; only explicit addresses activate them.
+  affinityDenied: z.array(z.string()).default([]),
   gated: z.boolean().default(false),
   sessionModes: z.array(IntegrationSessionMode).default([]),
   // Emitted unconditionally and stripped by readers that predate it; an empty bundle clears every binding.
