@@ -1430,7 +1430,9 @@
         "dmOnHint": "Replies to every message in this conversation.",
         "hint": "Trigger — when the agent responds here",
         "decision": "By decision",
-        "decisionHint": "A saved decision judges each message in {room}; the agent answers only for the answers you pick."
+        "decisionHint": "A saved decision judges each message in {room}; the agent answers only for the answers you pick.",
+        "mentionTopic": "mention + reply",
+        "mentionTopicHint": "The agent responds only when mentioned or when someone replies to one of its own messages in {room}."
       },
       "action": {
         "leaveLabel": "Leave {noun}",
@@ -1979,7 +1981,8 @@
         "docs": "Docs",
         "add": "Add API",
         "adding": "Adding…"
-      }
+      },
+      "whenMentionedOrReply": "When mentioned, or on a reply"
     },
     "api": {
       "title": "API",

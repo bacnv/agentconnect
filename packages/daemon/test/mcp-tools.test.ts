@@ -16,6 +16,7 @@ const slackInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -30,6 +31,7 @@ const telegramInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -44,6 +46,7 @@ const qqInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -60,6 +63,7 @@ const discordInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -74,6 +78,7 @@ const feishuInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -628,6 +633,7 @@ describe('platform session tools (read-ports.ts `sessionTools`)', () => {
       mode: 'shared',
       bindRules: [],
       mutedChannels: [],
+      affinityDenied: [],
       gated: false,
       sessionModes: [],
       decisions: { bindings: [], definitions: [] }

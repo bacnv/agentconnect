@@ -33,7 +33,10 @@ export const telegramModule: WebPlatformModule<TelegramApi> = {
     // Telegram groups have no `#name` convention, so the row shows the bare title.
     roomGlyph: '',
     // `leaveChat` needs no extra permission, so a row can be left from the console.
-    leave: 'conversation'
+    leave: 'conversation',
+    // The reply arm works because the daemon records each post's platform message id
+    // beside the bot's own identity, so a reply resolves to the agent that was answered.
+    triggers: ['off', 'mention', 'mention_topic', 'any']
   },
   messageIdentity: (row) => (TELEGRAM_MESSAGE_ID.test(row.ts) ? `ts:${row.ts}` : null)
 }
