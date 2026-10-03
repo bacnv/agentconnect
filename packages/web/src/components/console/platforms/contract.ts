@@ -586,6 +586,12 @@ export interface WebChannelListSemantics {
   dmSessionModes?: readonly ('createNew' | 'append' | 'auto')[]
   /** Session modes a group DM row offers, a small private room (auto-session-mode.md §3.2). Absent ⇒ none: the platform has no group DM of its own. */
   groupDmSessionModes?: readonly ('createNew' | 'append' | 'auto')[]
+  /**
+   * Whether a conversation's rows can carry their own trigger. Only a platform with a real
+   * sub-conversation — Telegram forum topics — declares it, and one that declares nothing
+   * renders no disclosure at all.
+   */
+  threadTriggers?: readonly ('off' | 'mention' | 'mention_topic' | 'any')[]
   /** Confirmation before a default seat moves off a gated agent, whose only grant it is (body gets `owner`, `room`); absent ⇒ no warning. */
   ownerChangeWarning?: {
     title: WebChannelListMessage

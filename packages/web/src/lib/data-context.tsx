@@ -39,6 +39,7 @@ import {
   finalizeSlackInstall as apiFinalizeSlackInstall,
   deleteIntegration as apiDeleteIntegration,
   updateIntegrationChannel as apiUpdateIntegrationChannel,
+  updateIntegrationChannelThread as apiUpdateIntegrationChannelThread,
   forgetIntegrationChannel as apiForgetIntegrationChannel,
   leaveIntegrationConversation as apiLeaveIntegrationConversation,
   updateBot as apiUpdateBot,
@@ -272,6 +273,13 @@ interface ConsoleData {
   deleteHook: (id: string, agentId?: string | null) => Promise<void>
   /** Per-conversation trigger choice (PATCH), applied to the local row on success. */
   setChannelTrigger: (integrationId: string, channelId: string, trigger: ChannelTrigger) => Promise<void>
+  /** Per-topic trigger choice (PATCH). `null` clears the override, back to the conversation's. */
+  setThreadTrigger: (
+    integrationId: string,
+    channelId: string,
+    threadId: string,
+    trigger: Exclude<ChannelTrigger, 'decision'> | null
+  ) => Promise<void>
   /** Save a By decision gate (trigger + binding in one PATCH) and project the returned row. */
   setChannelDecision: (integrationId: string, channelId: string, gate: ChannelDecisionGate) => Promise<void>
   setChannelSessionMode: (integrationId: string, channelId: string, sessionMode: ChannelSessionMode) => Promise<void>
@@ -400,7 +408,8 @@ export function integrationRowFromDto(
       decisionBinding: c.decisionBinding ?? null,
       decision: c.decision ?? null,
       sessionMode: c.sessionMode,
-      agentId: c.agentId
+      agentId: c.agentId,
+      ...(c.threads ? { threads: c.threads } : {})
     }))
   }
 }
@@ -619,6 +628,7 @@ const MOCK_CRONS: CronDto[] = [
     timezone: 'UTC',
     targetPlatform: 'slack',
     targetChannel: '#pull-requests',
+    targetThread: null,
     targetIntegrationId: null,
     trigger: 'check the dependency report and flag anything new',
     enabled: true,
@@ -641,6 +651,7 @@ const MOCK_CRONS: CronDto[] = [
     timezone: 'UTC',
     targetPlatform: 'slack',
     targetChannel: '#deploys',
+    targetThread: null,
     targetIntegrationId: null,
     trigger: 'sweep yesterday’s error budget and summarize',
     enabled: true,
@@ -663,6 +674,7 @@ const MOCK_CRONS: CronDto[] = [
     timezone: 'UTC',
     targetPlatform: 'telegram',
     targetChannel: '@acme_docs',
+    targetThread: null,
     targetIntegrationId: null,
     trigger: 'post the docs backlog for the day',
     enabled: true,
@@ -685,6 +697,7 @@ const MOCK_CRONS: CronDto[] = [
     timezone: 'UTC',
     targetPlatform: 'slack',
     targetChannel: '#pull-requests',
+    targetThread: null,
     targetIntegrationId: null,
     trigger: 'summarize the week’s merged pull requests',
     enabled: false,
@@ -1544,6 +1557,45 @@ export function ConsoleDataProvider({ children }: { children: ReactNode }) {
     [mutateIntegrations, realBots]
   )
 
+  // Set or clear one topic's trigger, with the same bot-wide projection the conversation
+  // toggle uses so a shared bot cannot disagree with itself between installs.
+  const setThreadTrigger = useCallback(
+    async (
+      integrationId: string,
+      channelId: string,
+      threadId: string,
+      trigger: Exclude<ChannelTrigger, 'decision'> | null
+    ) => {
+      await apiUpdateIntegrationChannelThread(integrationId, channelId, threadId, { trigger })
+      settleInBackground(
+        mutateIntegrations(
+          (rows) => {
+            const source = rows?.find((row) => row.id === integrationId)
+            if (!rows || !source) return rows
+            const botWide = realBots.some((bot) => bot.id === source.botId && bot.shareable)
+            return rows.map((row) =>
+              (botWide ? row.botId === source.botId : row.id === integrationId)
+                ? {
+                    ...row,
+                    channels: row.channels.map((channel) =>
+                      channel.channelId === channelId
+                        ? {
+                            ...channel,
+                            threads: channel.threads?.map((t) => (t.threadId === threadId ? { ...t, trigger } : t))
+                          }
+                        : channel
+                    )
+                  }
+                : row
+            )
+          },
+          { revalidate: false }
+        )
+      )
+    },
+    [mutateIntegrations, realBots]
+  )
+
   // Project a returned conversation's trigger, gate and readiness onto the cache, bot-wide for a shared bot.
   const projectChannel = useCallback(
     (integrationId: string, updated: IntegrationChannelDto) =>
@@ -1890,6 +1942,7 @@ export function ConsoleDataProvider({ children }: { children: ReactNode }) {
       deleteHook,
       deleteBot,
       setChannelTrigger,
+      setThreadTrigger,
       setChannelDecision,
       setChannelSessionMode,
       forgetChannel,
@@ -1985,6 +2038,7 @@ export function ConsoleDataProvider({ children }: { children: ReactNode }) {
       deleteHook,
       deleteBot,
       setChannelTrigger,
+      setThreadTrigger,
       setChannelDecision,
       setChannelAgent,
       setBotShareable,

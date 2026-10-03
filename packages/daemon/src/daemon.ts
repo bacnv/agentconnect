@@ -228,6 +228,9 @@ import {
   type RelayRosterEntry,
   type CronReport,
   type FactsMcpServer,
+  // The routing envelope's thread half (channel-session-mode.md §4, channel triggers §14.9).
+  ScopeRef,
+  ThreadRef,
   type IntegrationChannel,
   type Drain,
   type DrainProgress,
@@ -1436,6 +1439,7 @@ import {
   telegramReplyTarget as telegramReplyTargetExternal
 } from './platforms/telegram/threading.js'
 import { TurnOutputRegistry, type TurnAcknowledgement, type TurnAcknowledgementEnd } from './platforms/turn-output.js'
+(feat: a Telegram forum topic carries its own trigger)
 import { boundedDiagnostic, formatErr, startFailureDetail } from './daemon/text.js'
 import { BackgroundExecs, noteOpenExec } from './daemon/background-execs.js'
 import { HostPasses } from './daemon/host-passes.js'
@@ -3496,6 +3500,8 @@ export class Daemon {
         this.observedChannelsSync.observeTelegramChat(chat, integrationIds),
       migrateTelegramChat: (migration, integrationIds) =>
         this.observedChannelsSync.migrateTelegramChat(migration, integrationIds),
+      observeForumTopic: (platform, topic, integrationIds) =>
+        this.observedChannelsSync.observeForumTopic(platform, topic, integrationIds),
       observePlatformChat: (platform, chat, integrationIds) =>
         this.observedChannelsSync.observePlatformChat(platform, chat, integrationIds),
       observePlatformChats: (platform, chats, integrationIds) =>
@@ -13064,7 +13070,7 @@ export class Daemon {
       reminders: this.store.assistantReminders,
       placeEnabled: (agentId, integrationId, channel) => {
         const int = this.agents.get(agentId)?.integrations.find((i) => i.id === integrationId)
-        return int !== undefined && conversationAdmitted(integrationRouting(int), channel)
+        return int !== undefined && conversationAdmitted(integrationRouting(int), channel, undefined)
       },
       post: (reminder) => this.postReminder(reminder)
     })
@@ -16127,7 +16133,7 @@ export class Daemon {
   }
 
   private agentConversationAdmits(agentId: string, msg: NormalizedMessage): boolean {
-    return conversationAdmitsAgent(this.mergedRules(), agentId, msg.channel)
+    return conversationAdmitsAgent(this.mergedRules(), agentId, msg.channel, msg.thread)
   }
 
   /** Admit one verified agent-authored target via the activation rendezvous (§3.2/§8.6); a paired call's visible half only claims, its wake carries the envelope. */
@@ -18476,7 +18482,7 @@ export class Daemon {
     })
     if (places?.length)
       await this.observedChannelsSync.observePlatformChats(msg.platformId, places, [msg.integrationId])
-    const enabled = conversationAdmitted(integrationRouting(int), added.channel)
+    const enabled = conversationAdmitted(integrationRouting(int), added.channel, undefined)
     const welcome = buildWelcome({ isDm: added.isDm, enabled, consoleUrl: this.agentLink(agent.id) })
     let root: string | undefined
     try {
@@ -18669,7 +18675,7 @@ export class Daemon {
     }
     if (payload.kind === 'open-config-for-thread') {
       const routing = integrationRouting(integration)
-      const unauthorized = !conversationAdmitted(routing, payload.channelId)
+      const unauthorized = !conversationAdmitted(routing, payload.channelId, payload.threadTs)
       const transportScope = this.transportScopeForIntegrationIds([integration.id])
       // A conversation that appends has no session at the tapped thread — its session lives
       // at the coordinate in force, so look there rather than reporting "no session".
@@ -20846,7 +20852,13 @@ export class Daemon {
   private resolveCpAgent(
     agentId: string,
     platform?: string
-  ): { integrationId: string; botUserId: string; platform: string; mutedChannels: string[] } | null {
+  ): {
+    integrationId: string
+    botUserId: string
+    platform: string
+    mutedChannels: ScopeRef[]
+    overriddenThreads: ThreadRef[]
+  } | null {
     return resolveAgentIntegration(this.agents.get(agentId), this.botUserIds, platform)
   }
 
@@ -29881,7 +29893,7 @@ export class Daemon {
   private gatedAdmission(integrationId: string, msg: NormalizedMessage): boolean {
     const int = this.integrationConfigById(integrationId)
     if (!int) return true // unknown here — agent/integration existence is checked separately
-    return conversationAdmitted(integrationRouting(int), msg.channel)
+    return conversationAdmitted(integrationRouting(int), msg.channel, msg.thread)
   }
 
   /** integrationId → rooms this daemon is opening for a conversation-gated agent (resource-visibility.md §14.10): how many are being made, and until when the last grant's rules may still be on their way. */
@@ -29942,7 +29954,7 @@ export class Daemon {
     while (this.roomGrantOpen(integrationId, msg) && Date.now() < deadline) {
       await sleepFor(ROOM_GRANT_POLL_MS)
       const int = this.integrationConfigById(integrationId)
-      if (int && conversationAdmitted(integrationRouting(int), msg.channel)) return true
+      if (int && conversationAdmitted(integrationRouting(int), msg.channel, msg.thread)) return true
     }
     return false
   }

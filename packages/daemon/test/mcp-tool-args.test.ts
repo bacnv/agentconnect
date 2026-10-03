@@ -30,6 +30,7 @@ const slackInt: Integration = {
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -44,6 +45,7 @@ const telegramInt: Integration = {
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -58,6 +60,7 @@ const qqInt: Integration = {
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -72,6 +75,7 @@ const dingTalkInt: Integration = {
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -86,6 +90,7 @@ const weChatInt: Integration = {
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -101,6 +106,7 @@ const weComInt: Integration = {
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
