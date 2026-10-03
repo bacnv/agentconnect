@@ -10,6 +10,7 @@ import {
   isTelegramMembershipServiceMessage,
   normalizeTelegramMessage,
   telegramChatMigration,
+  telegramForumTopicId,
   type TelegramMessage
 } from './normalize.js'
 import { TELEGRAM_CALLBACK_ANSWER_LIMIT } from './render.js'
@@ -125,6 +126,13 @@ export interface TelegramChatMigration {
   isPrivate: boolean
 }
 
+/** A forum topic learned from a service record or from a message inside it. */
+export interface TelegramObservedTopic {
+  chatId: string
+  threadId: string
+  name?: string
+}
+
 export interface TelegramDeps {
   group: ConsolidatedTelegramGroup
   onMessage: (msg: NormalizedMessage) => void
@@ -132,6 +140,9 @@ export interface TelegramDeps {
   onBotAddedToChat?: (chat: TelegramObservedChat) => void
   /** Upgrade records re-key a known chat and, like membership records, never enter routing. */
   onChatMigrated?: (migration: TelegramChatMigration) => void
+  /** A forum topic learned from a service record or from a message inside it. Topics are
+   *  config metadata: they never enter routing, and nothing is ever sent to Telegram. */
+  onForumTopic?: (topic: TelegramObservedTopic) => void
   /** An inline-keyboard button was tapped (session-control cards — /models etc.). */
   onCallback?: (cb: TelegramCallback) => void
   newTraceId: () => string
@@ -337,6 +348,19 @@ export class TelegramConnection implements PlatformConnection {
         })
         log?.info(`telegram: chat ${migration.from} migrated to ${migration.to}`)
         return
+      }
+      // Two sources, one sink: a service record names the topic, any message inside one only
+      // reveals it. Reporting here rather than after normalize keeps a created/edited record
+      // from being reported twice, and a closed/reopened record (no name) from looking like a
+      // rename. Config metadata — nothing is ever sent to Telegram.
+      const topicId = telegramForumTopicId(message)
+      if (topicId !== undefined) {
+        const name = message.forum_topic_created?.name ?? message.forum_topic_edited?.name
+        this.deps.onForumTopic?.({
+          chatId: String(message.chat.id),
+          threadId: topicId,
+          ...(name !== undefined ? { name } : {})
+        })
       }
       if (isTelegramMembershipServiceMessage(message)) {
         const botWasAdded = message.new_chat_members?.some((member) => String(member.id) === this.botUserId) === true

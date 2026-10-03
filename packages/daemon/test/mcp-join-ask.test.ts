@@ -23,6 +23,8 @@ const ctx: SessionContext = {
         mode: 'direct',
         bindRules: [],
         mutedChannels: [],
+        affinityDenied: [],
+        overriddenThreads: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }

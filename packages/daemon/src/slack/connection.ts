@@ -1576,7 +1576,7 @@ export class SlackConnection implements PlatformConnection {
       !agent.builtin ||
       agent.status !== 'active' ||
       agent.pause ||
-      !conversationAdmitted(integrationRouting(integration), channel) ||
+      !conversationAdmitted(integrationRouting(integration), channel, undefined) ||
       this.welcomedAppHomes.has(channel)
     )
       return

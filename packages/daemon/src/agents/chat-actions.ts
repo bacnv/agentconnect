@@ -73,7 +73,11 @@ export type ChatSurface = 'open' | 'closed' | 'external'
 export function chatSurfaceOf(int: Integration | undefined, channel: string, externallyShared = false): ChatSurface {
   if (!int) return 'closed'
   const routing = integrationRouting(int)
-  if (!conversationAdmitted(routing, channel) || routing.decisionBound(channel) || routing.routingFor(channel))
+  if (
+    !conversationAdmitted(routing, channel, undefined) ||
+    routing.decisionBound(channel) ||
+    routing.routingFor(channel)
+  )
     return 'closed'
   return externallyShared || conversationTrustLevel(int, channel) === 'external' ? 'external' : 'open'
 }

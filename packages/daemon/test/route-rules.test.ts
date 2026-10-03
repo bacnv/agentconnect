@@ -369,7 +369,8 @@ describe('rulesFromAgent / resolveAgentIntegration (Telegram)', () => {
       botUserId: 'mybot',
       platform: 'telegram',
       mutedChannels: [],
-      affinityDenied: []
+      affinityDenied: [],
+      overriddenThreads: []
     })
     expect(resolveAgentIntegration(undefined, {})).toBeNull()
   })
@@ -389,7 +390,10 @@ describe('affinityDenied reaches the ladder from agent.json', () => {
             bindRules: [{ match: { kind: 'mention' } }],
             mutedChannels: [],
             affinityDenied: ['-100'],
-            gated: false
+            overriddenThreads: [],
+            gated: false,
+            sessionModes: [],
+            decisions: { bindings: [], definitions: [] }
           },
           config: { botToken: '123:abc', botUsername: 'mybot' }
         }

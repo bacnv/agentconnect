@@ -19,11 +19,19 @@ const ctx: SessionContext = {
   isDm: false,
   channel: '-1001234567890',
   thread: '-1001234567890:42',
+  deliveryThread: '-1001234567890:42',
   tools: toolsForIntegrations([
     {
       id: 'int-tg',
       platform: 'telegram',
-      core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+      core: {
+        mode: 'direct',
+        bindRules: [],
+        mutedChannels: [],
+        affinityDenied: [],
+        overriddenThreads: [],
+        gated: false
+      },
       config: { botToken: '123456:ABC' }
     } as never
   ])

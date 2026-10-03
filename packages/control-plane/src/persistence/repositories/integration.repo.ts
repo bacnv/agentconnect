@@ -26,6 +26,7 @@ import {
   type Decision,
   type Integration,
   type IntegrationChannel,
+  type IntegrationChannelThread,
   type User
 } from '../../generated/prisma/client.js'
 import { withAmbientTx, type PrismaLike } from '../prisma.js'
@@ -52,6 +53,7 @@ import type {
   IntegrationStatus,
   IntegrationChannelRepo,
   IntegrationChannelRecord,
+  IntegrationChannelThreadRecord,
   IntegrationChannelNameRecord,
   ConversationCoordinate,
   ReportedChannel,
@@ -816,6 +818,7 @@ const STICKY_EXTERNAL_REASONS: string[] = PlaceExternalReason.options.filter(pla
 
 // Every record read joins the bound gate Decision and the bot's router, so both ride each projection.
 const CHANNEL_INCLUDE = {
+  threads: true,
   decision: true,
   integration: {
     select: {
@@ -866,7 +869,7 @@ function definitionOf(d: Decision | null | undefined): DecisionBundleDefinition 
 }
 
 function toChannelRecord(
-  c: IntegrationChannel & { decision?: Decision | null } & ChannelRouterJoin
+  c: IntegrationChannel & { threads: IntegrationChannelThread[]; decision?: Decision | null } & ChannelRouterJoin
 ): IntegrationChannelRecord {
   return {
     integrationId: IntegrationId(c.integrationId),
@@ -889,7 +892,8 @@ function toChannelRecord(
     dmUserId: c.dmUserId,
     triggerChosen: c.triggerChosen,
     agentId: c.agentId ? AgentId(c.agentId) : null,
-    externalReason: PlaceExternalReason.safeParse(c.externalReason).data ?? null
+    externalReason: PlaceExternalReason.safeParse(c.externalReason).data ?? null,
+    threads: c.threads.map(toThreadRecord)
   }
 }
 
@@ -920,6 +924,10 @@ async function channelRecords(
         }
       : record
   })
+}
+
+function toThreadRecord(t: IntegrationChannelThread): IntegrationChannelThreadRecord {
+  return { threadId: t.threadId, name: t.name, trigger: t.trigger as SeedTrigger | null }
 }
 
 export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
@@ -1051,6 +1059,15 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
           END,
           "updatedAt" = NOW()
       `
+      for (const t of c.threads ?? []) {
+        await this.db.integrationChannelThread.upsert({
+          where: { integrationId_channelId_threadId: { integrationId, channelId: c.id, threadId: t.id } },
+          // A report refreshes the NAME only. The trigger is the operator's, and this write
+          // races a console PATCH — writing NULL here would clear an override under it.
+          create: { integrationId, channelId: c.id, threadId: t.id, name: t.name ?? null },
+          update: { ...(t.name !== undefined ? { name: t.name } : {}) }
+        })
+      }
     }
     // After the upserts, so a target the report just seeded takes the source's settings.
     let migrated = false
@@ -1111,7 +1128,6 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
     opts?: { defaultTrigger?: SeedTrigger }
   ): Promise<IntegrationChannelRecord> {
     const row = await this.db.integrationChannel.upsert({
-      include: CHANNEL_INCLUDE,
       where: { integrationId_channelId: { integrationId, channelId: conversation.id } },
       create: {
         integrationId,
@@ -1142,7 +1158,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(conversation.key !== undefined ? { key: conversation.key } : {}),
         ...(conversation.url !== undefined ? { url: conversation.url } : {}),
         ...(conversation.dmUserId ? { dmUserId: conversation.dmUserId } : {})
-      }
+      },
+      include: CHANNEL_INCLUDE
     })
     return (await channelRecords(this.db, [row]))[0]!
   }
@@ -1190,7 +1207,6 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
     opts?: { defaultTrigger?: SeedTrigger; kind?: ConversationKind }
   ): Promise<IntegrationChannelRecord> {
     const row = await this.db.integrationChannel.upsert({
-      include: CHANNEL_INCLUDE,
       where: { integrationId_channelId: { integrationId, channelId } },
       create: {
         integrationId,
@@ -1199,7 +1215,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(opts?.kind ? { kind: opts.kind } : {}),
         ...(opts?.defaultTrigger ? { trigger: opts.defaultTrigger } : {})
       },
-      update: { agentId }
+      update: { agentId },
+      include: CHANNEL_INCLUDE
     })
     return (await channelRecords(this.db, [row]))[0]!
   }
@@ -1260,6 +1277,25 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
       include: CHANNEL_INCLUDE
     })
     return row ? (await channelRecords(this.db, [row]))[0]! : null
+  }
+
+  async setThreadTrigger(
+    integrationId: IntegrationId,
+    channelId: string,
+    threadId: string,
+    trigger: ChannelTrigger | null
+  ): Promise<IntegrationChannelThreadRecord | null> {
+    // updateMany → no throw on a missing row: a topic can vanish with its channel between
+    // the console's read and this write, and the updateMany count IS the existence check.
+    const res = await this.db.integrationChannelThread.updateMany({
+      where: { integrationId, channelId, threadId },
+      data: { trigger }
+    })
+    if (res.count === 0) return null
+    const row = await this.db.integrationChannelThread.findUnique({
+      where: { integrationId_channelId_threadId: { integrationId, channelId, threadId } }
+    })
+    return row ? toThreadRecord(row) : null
   }
 
   async namesForOrg(

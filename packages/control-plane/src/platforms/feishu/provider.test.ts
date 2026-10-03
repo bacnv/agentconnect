@@ -164,7 +164,8 @@ const channel = (
   decisionBinding: null,
   decisionNeedsReview: false,
   decisionDefinition: null,
-  agentId: null
+  agentId: null,
+  threads: []
 })
 
 // §9 adoption: the live spec/assign paths reach this provider THROUGH the
@@ -442,6 +443,7 @@ describe('feishu projection equivalence with the live integrationToSpec path (di
         bindRules,
         mutedChannels: ['oc_3'],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: false,
         sessionModes: [],
         externalChannels: [],
@@ -533,6 +535,7 @@ describe('feishu projection equivalence with the live httpIntegrationToSpec path
         bindRules: [],
         mutedChannels: ['oc_2'],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: false,
         sessionModes: [],
         externalChannels: [],
