@@ -40,7 +40,7 @@ import {
   sessionThreadOf
 } from '../messages/normalized.js'
 import { messageOrderingFor } from '../platforms/message-ordering.js'
-import { attachmentMention, buildAttachmentBlocks } from './attachment-block.js'
+import { attachmentMention, buildAttachmentBlocks, type AttachmentDeps } from './attachment-block.js'
 import {
   DIRECT_AGENT_CALL_REMINDER,
   EXPLICIT_MENTION_REMINDER,
@@ -936,6 +936,14 @@ export class SessionManager {
 
     // §8.5: every participant catches up the whole thread, except on a pairwise `a2a:<caller>` thread (#967), where it reads only its own rows.
     const blocks: ContentBlock[] = []
+    // Shared by the trigger's own files and the quoted source's: same download
+    // surface, same capability gate, same cap.
+    const attachmentDeps: AttachmentDeps = {
+      download: (att) => this.deps.downloadAttachment?.(agentId, att, integrationId) ?? Promise.resolve(null),
+      transferUrl: (att) => this.deps.transferUrl?.(agentId, att) ?? Promise.resolve(undefined),
+      supports: (kind) => host.promptSupports?.(kind) ?? false,
+      ...(this.deps.attachmentMaxBytes !== undefined ? { maxBytes: this.deps.attachmentMaxBytes } : {})
+    }
     let contextEvents: { ts: string; text?: string }[] = []
     // By decision background and evidence (decisions.md §8.4), rebuilt byte-identically from the persisted intake.
     const intake = msg.channelIntake
@@ -1045,17 +1053,12 @@ export class SessionManager {
     // §9.2 attachments on the current message → image/resource/resource_link blocks.
     // A coordinator only places messages; the task it hands one to receives the attachments.
     if (ingested.attachments?.length && options.coordinatorBatch === undefined) {
-      const attBlocks = await abortable(
-        () =>
-          buildAttachmentBlocks(ingested.attachments!, {
-            download: (att) => this.deps.downloadAttachment?.(agentId, att, integrationId) ?? Promise.resolve(null),
-            transferUrl: (att) => this.deps.transferUrl?.(agentId, att) ?? Promise.resolve(undefined),
-            supports: (kind) => host.promptSupports?.(kind) ?? false,
-            ...(this.deps.attachmentMaxBytes !== undefined ? { maxBytes: this.deps.attachmentMaxBytes } : {})
-          }),
-        signal
-      )
-      blocks.push(...attBlocks)
+      blocks.push(...(await abortable(() => buildAttachmentBlocks(ingested.attachments!, attachmentDeps), signal)))
+    }
+
+    const quotedAttachments = msg.quoted?.attachments
+    if (quotedAttachments?.length && options.coordinatorBatch === undefined) {
+      blocks.push(...(await abortable(() => buildAttachmentBlocks(quotedAttachments, attachmentDeps), signal)))
     }
 
     // Per-activation semantic recall happens only after the real user/peer/unread

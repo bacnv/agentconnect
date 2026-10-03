@@ -318,7 +318,7 @@ import { StoreRetentionSweeper, resolveStoreRetentionSettings } from './store/re
 import { TranscriptRecorder, type TranscriptEvent } from './session/transcript-recorder.js'
 import { TerminalOutputFolder } from './session/terminal-output-folder.js'
 import { WorkBoundary } from './messages/message-boundary.js'
-import { attachmentMention } from './session/attachment-block.js'
+import { attachmentMention, buildAttachmentBlocks, sniffImageMimeType } from './session/attachment-block.js'
 import { McpControlServer } from './mcp/control-server.js'
 import {
   COMPUTER_COMMAND_LINE_GUIDANCE,
@@ -17270,12 +17270,33 @@ export class Daemon {
       : undefined
     let outcome: Awaited<ReturnType<AcpHost['steer']>>
     try {
-      // `promptRequired`: a steer that races the turn end is declined, never a turn we did not admit.
       const blocks = [
         ...steerPromptBlocks(entry.msg, await this.steerIntakeText(entry)),
         ...(routing ? webchatRoutingNoteBlocks(routing, false) : [])
       ]
-      outcome = await host.steer(target.acpSessionId, blocks, { idleBehavior: 'promptRequired' })
+      // A steered picture needs its bytes for the same reason a dispatched one does: the
+      // marker only names the file, so without this a mid-turn photo reaches the agent as
+      // a filename — and a capability-routing gateway sees no image to switch models for.
+      const attachments = [...(entry.msg.attachments ?? []), ...(entry.msg.quoted?.attachments ?? [])]
+      if (attachments.length > 0) {
+        blocks.push(
+          ...(await buildAttachmentBlocks(attachments, {
+            download: (att) =>
+              att.sourceUrl
+                ? (this.replyConnFor(entry.agentId, entry.integrationId)?.downloadFile?.(
+                    att.sourceUrl,
+                    this.cfg.limits.maxAttachmentBytes
+                  ) ?? Promise.resolve(null))
+                : Promise.resolve(null),
+            supports: (kind) => host.promptSupports?.(kind) ?? false,
+            maxBytes: this.cfg.limits.maxAttachmentBytes
+          }))
+        )
+      }
+      // `promptRequired`: a steer that races the turn end is declined, never a turn we did not admit.
+      outcome = await host.steer(target.acpSessionId, blocks, {
+        idleBehavior: 'promptRequired'
+      })
     } catch (err) {
       this.log.warn(`steer: ${key} failed, queueing instead — ${(err as Error).message}`)
       return false
