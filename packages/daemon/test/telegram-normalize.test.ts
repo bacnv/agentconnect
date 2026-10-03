@@ -282,6 +282,53 @@ describe('quoted (reply_to_message content)', () => {
     expect(n.quoted?.text).toBe('[attached: u1.jpg (image/jpeg)]')
   })
 
+  it('carries the quoted photo metadata so the daemon can prompt with pixels', () => {
+    // The text alone only NAMES the file — an agent asked about the replied-to
+    // picture would be answering about a filename it never saw.
+    const n = normalizeTelegramMessage(
+      msg({
+        reply_to_message: {
+          message_id: 5,
+          from: { id: 7, username: 'bob' },
+          photo: [
+            { file_id: 'small', file_unique_id: 'u1' },
+            { file_id: 'big', file_unique_id: 'u1', file_size: 900 }
+          ]
+        }
+      }),
+      ctx
+    )
+    expect(n.quoted?.attachments).toEqual([
+      {
+        id: 'big',
+        name: 'u1.jpg',
+        mimeType: 'image/jpeg',
+        size: 900,
+        sourceUrl: 'big',
+        thumbnailUrl: 'small'
+      }
+    ])
+  })
+
+  it('carries the quoted document metadata too', () => {
+    const n = normalizeTelegramMessage(
+      msg({
+        reply_to_message: {
+          message_id: 5,
+          from: { id: 7 },
+          document: { file_id: 'd1', file_name: 'trace.log', mime_type: 'text/plain' }
+        }
+      }),
+      ctx
+    )
+    expect(n.quoted?.attachments).toEqual([{ id: 'd1', name: 'trace.log', mimeType: 'text/plain', sourceUrl: 'd1' }])
+  })
+
+  it('omits quoted attachments when the source carries no file', () => {
+    const n = normalizeTelegramMessage(msg({ reply_to_message: { message_id: 5, text: 'hi' } }), ctx)
+    expect(n.quoted?.attachments).toBeUndefined()
+  })
+
   it('truncates a long quoted message and marks it an excerpt', () => {
     const long = 'x'.repeat(1500)
     const n = normalizeTelegramMessage(msg({ reply_to_message: { message_id: 5, text: long } }), ctx)

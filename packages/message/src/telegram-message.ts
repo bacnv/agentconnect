@@ -154,7 +154,10 @@ export function quotedFromTelegramReply(message: TelegramMessage): QuotedMessage
     ...(sender !== undefined ? { sender } : {}),
     text: truncated ? `${body.slice(0, MAX_QUOTED_TEXT_CHARS)}…` : body,
     ...(manual ? { selection: true } : {}),
-    ...(manual || serverExcerpt || truncated ? { excerpt: true } : {})
+    ...(manual || serverExcerpt || truncated ? { excerpt: true } : {}),
+    // The marker above only NAMES the file. Carrying the metadata lets the daemon
+    // fetch the bytes and prompt with pixels; Telegram cannot fetch it later.
+    ...(attachments.length > 0 ? { attachments } : {})
   }
 }
 
