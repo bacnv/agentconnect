@@ -12,7 +12,13 @@
  * Slack-only today, so behavior is identical — but a platform that admits bot senders must revisit
  * {@link routeRules} alongside the manifest.
  */
-import { MAX_AGENT_CALL_HOPS, hasReachedAgentCallHopLimit, manifestFor } from '@agentconnect.md/protocol'
+import {
+  MAX_AGENT_CALL_HOPS,
+  hasReachedAgentCallHopLimit,
+  manifestFor,
+  type ScopeRef,
+  type ThreadRef
+} from '@agentconnect.md/protocol'
 
 /** A routing rule's trigger — structurally identical to the daemon's
  *  `BindMatch` (agent.json bindRules) and the wire route match. */
@@ -32,14 +38,16 @@ export interface ActivationRule {
   botUserId: string // for `mention` matching ("" when unknown)
   scope: { channel?: string; thread?: string }
   match: RuleMatch
-  /** Channels its integration is switched OFF in — the subtractive fence a
-   *  purely additive rule set cannot express. Carried per rule so the ladder
-   *  stays pure and every rung is fenced by the one scope filter. */
-  mutedChannels?: string[]
+  /** Fences: what the enclosing conversation states, read inside the one scope filter.
+   *  A bare string is channel-wide; a `{channel, thread}` ref names one thread. */
+  mutedChannels?: ScopeRef[]
   /** Conversations that admit only an explicit address (an @-mention or a reply to one
    *  of this agent's own messages). The implicit continuity rungs are denied here, so an
    *  open session alone never delivers — unlike `mutedChannels`, which silences outright. */
-  affinityDenied?: string[]
+  affinityDenied?: ScopeRef[]
+  /** Threads that carry their own trigger: in these, nothing stated about the enclosing
+   *  conversation applies — its rules and its fences both. */
+  overriddenThreads?: ThreadRef[]
   source: 'config' | 'cp'
   epoch?: number // cp layer only
   /** Platform this rule belongs to. Undefined = matches any platform
@@ -71,17 +79,35 @@ function channelInScope(scopeChannel: string | undefined, msg: ActivationMessage
   return scopeChannel === msg.channel
 }
 
+/** Does a fence ref reach this message? A channel-wide ref IS the enclosing conversation's
+ *  own statement, so it stops at a thread that carries its own trigger; a thread-shaped ref
+ *  always reaches the thread it names. */
+function refCovers(ref: ScopeRef, msg: ActivationMessageFacts, own: boolean): boolean {
+  if (typeof ref === 'string') return own && ref === msg.channel
+  return ref.channel === msg.channel && ref.thread === msg.thread
+}
+
+/** Does the enclosing conversation's own state reach here? False in a thread the operator
+ *  gave its own trigger: that thread ignores everything stated about the conversation. */
+function channelReaches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
+  return !r.overriddenThreads?.some((t) => refCovers(t, msg, true))
+}
+
 function scopeMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
   // A platform-tagged rule only serves its own platform, so an unscoped Slack
   // `dm`/`auto` rule can't route a Telegram message (and vice-versa). Undefined
   // platform (legacy/tests) matches any.
   if (r.platform !== undefined && r.platform !== msg.platform) return false
-  // A channel the operator switched OFF silences its integration outright. Applied
+  const own = channelReaches(r, msg)
+  // A channel-scoped rule with no thread IS the conversation's own statement, so a thread
+  // that carries its own trigger drops it. An unscoped rule names no conversation and stays.
+  if (!own && r.scope.channel !== undefined && r.scope.thread === undefined) return false
+  // A conversation the operator switched OFF silences its integration outright. Applied
   // here, in the ONE scope filter, so no rung can slip past it: not an unscoped
   // mention default, not thread continuity (which reads the same candidate set), not
-  // a CP session placement. Threads inherit the enclosing channel's Off through the
+  // a CP session placement. Threads inherit the enclosing conversation's Off through the
   // same predicate the positive scope uses.
-  if (r.mutedChannels?.some((muted) => channelInScope(muted, msg))) return false
+  if (r.mutedChannels?.some((muted) => refCovers(muted, msg, own))) return false
   if (!channelInScope(r.scope.channel, msg)) return false
   if (r.scope.thread !== undefined && r.scope.thread !== msg.thread) return false
   return true
@@ -91,11 +117,12 @@ function scopeMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
  *  Exported for the resolvers that pick a target by COORDINATE alone (control commands),
  *  which hold the fence but no rule to run the ladder over. */
 export function affinityAdmits(
-  denied: readonly string[] | undefined,
+  r: Pick<ActivationRule, 'affinityDenied' | 'overriddenThreads'>,
   agentId: string,
   msg: ActivationMessageFacts
 ): boolean {
-  if (!denied?.some((fenced) => channelInScope(fenced, msg))) return true
+  const own = channelReaches(r as ActivationRule, msg)
+  if (!r.affinityDenied?.some((fenced) => refCovers(fenced, msg, own))) return true
   return msg.replyToAuthor !== undefined && msg.replyToAuthor === agentId
 }
 
@@ -103,7 +130,7 @@ export function affinityAdmits(
  *  Separate from `scopeMatches`, which is the DELIVERY fence: putting this there would
  *  kill @-mentions too, which is what `off` does and this must not. */
 function continuityAdmits(r: ActivationRule, msg: ActivationMessageFacts): boolean {
-  return affinityAdmits(r.affinityDenied, r.agentId, msg)
+  return affinityAdmits(r, r.agentId, msg)
 }
 
 function kindMatches(r: ActivationRule, msg: ActivationMessageFacts): boolean {
@@ -266,12 +293,31 @@ export function routeRules(
  * which is the same data `routeRules` consults, minus the kind/trigger matching that
  * would be wrong here (an agent mention is explicit by construction).
  */
-export function conversationAdmitsAgent(rules: readonly ActivationRule[], agentId: string, channel: string): boolean {
+export function conversationAdmitsAgent(
+  rules: readonly ActivationRule[],
+  agentId: string,
+  channel: string,
+  thread?: string
+): boolean {
   const agentRules = rules.filter((rule) => rule.agentId === agentId)
   if (agentRules.length === 0) return false
   const covers = (scopeChannel: string | undefined): boolean => scopeChannel === undefined || scopeChannel === channel
-  if (agentRules.some((rule) => rule.mutedChannels?.some((muted) => covers(muted)))) return false
-  return agentRules.some((rule) => covers(rule.scope.channel))
+  // Only the coordinates `refCovers`/`channelReaches` read, so the fence answers exactly as
+  // `scopeMatches` would — no transcript lookup and no platform facts needed.
+  const probe = { channel, thread } as ActivationMessageFacts
+  const fenced = (rule: ActivationRule): boolean => {
+    const own = channelReaches(rule, probe)
+    return rule.mutedChannels?.some((muted) => refCovers(muted, probe, own)) === true
+  }
+  if (agentRules.some(fenced)) return false
+  // Scoped as `scopeMatches` scopes: a channel-scoped rule IS the conversation's own statement,
+  // so a topic carrying its own trigger drops it — how a gated integration's `off` topic (its Off
+  // being the absent thread-scoped rule) is refused. An UNSCOPED rule names no conversation and stays.
+  return agentRules.some((rule) => {
+    if (rule.scope.thread === undefined && rule.scope.channel !== undefined && !channelReaches(rule, probe))
+      return false
+    return covers(rule.scope.channel) && (rule.scope.thread === undefined || rule.scope.thread === thread)
+  })
 }
 
 /** Is a stamped source depth usable at all? §4.1 rule 1 / §5.2a fail-closed: a
