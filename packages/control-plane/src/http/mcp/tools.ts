@@ -1197,6 +1197,31 @@ export const MCP_TOOLS: McpToolDef[] = [
       )
   },
   {
+    name: 'setThreadTrigger',
+    description:
+      'Change how an integration behaves in one thread of a conversation (a Telegram forum topic): the trigger mode (off / mention-only / any message), or null to inherit the conversation’s trigger again. A topic with its own trigger ignores its conversation’s entirely.',
+    write: true,
+    schema: z
+      .object({
+        integrationId: z.string().min(1).describe('The integration id (from listIntegrations)'),
+        channelId: z.string().min(1).describe('The platform channel id (from listIntegrations channels)'),
+        threadId: z.string().min(1).describe('The topic id (from listIntegrations channels[].threads)'),
+        // Required, unlike setChannelTrigger's optional pair: the route has exactly one
+        // field, and null is a meaningful value rather than an omission.
+        trigger: z
+          .enum(['off', 'mention', 'mention_topic', 'any'])
+          .nullable()
+          .describe('null clears the topic’s own trigger, returning it to the conversation’s')
+      })
+      .strict(),
+    call: (ctx, a) =>
+      ctx.send(
+        'PATCH',
+        org(ctx, `/integrations/${seg(a.integrationId)}/channels/${seg(a.channelId)}/threads/${seg(a.threadId)}`),
+        bodyOf(a, 'integrationId', 'channelId', 'threadId')
+      )
+  },
+  {
     name: 'removeIntegration',
     description:
       'Remove a platform integration (bot ↔ agent binding) — IRREVERSIBLE (the bot identity survives and can be re-linked, but channel wiring is lost). `confirm` must exactly equal the integration’s `name`; get the user’s explicit approval before calling.',

@@ -544,6 +544,63 @@ describe('Daemon in-conversation commands', () => {
     await daemon.stop()
   })
 
+  it('admits a command in a topic the operator gave its own trigger, and refuses it in the muted group', async () => {
+    const blocked = blockingHost()
+    const daemon = new Daemon({
+      slackAppFactory: fakeSlackAppFactory(),
+      root: scaffold(),
+      hostFactory: () => blocked.host as any
+    })
+    await daemon.start()
+    // A Telegram integration, so the command's own platform matches the one that owns
+    // the topic — `commandSenderAllowed` refuses on a platform mismatch before it ever
+    // reads a fence.
+    const a = (daemon as any).agents.get('bot-a')
+    a.integrations = [
+      {
+        id: 'int-tg',
+        platform: 'telegram',
+        core: {
+          bindRules: [{ match: { kind: 'mention' } }],
+          mutedChannels: ['-100'],
+          overriddenThreads: [{ channel: '-100', thread: '7' }]
+        },
+        config: { botToken: 'b', botUserId: 'UBOTA' }
+      }
+    ]
+    const conn = {
+      workspaceId: vi.fn(() => 'T1'),
+      setStatus: vi.fn(async () => {}),
+      postMessage: vi.fn(async () => {}),
+      getChannelInfo: vi.fn(async (id: string) => ({ id })),
+      getUserProfile: vi.fn(async (id: string) => ({ id }))
+    }
+    ;(daemon as any).connByIntegration.set('int-tg', conn)
+
+    const inTopic = (thread: string) => ({
+      msgId: `telegram:-100:${thread}`,
+      traceId: `t-${thread}`,
+      source: 'user' as const,
+      platform: 'telegram' as const,
+      channel: '-100',
+      thread,
+      sender: { id: 'U1', isBot: false },
+      text: '!resume',
+      mentionedBots: [] as string[],
+      isDm: false,
+      trigger: 'mention' as const
+    })
+
+    // The group is muted; only the topic that carries its own trigger is reachable.
+    expect(await (daemon as any).commands.commandSenderAllowed('bot-a', 'int-tg', inTopic('8'))).toBe(false)
+    expect(await (daemon as any).commands.commandSenderAllowed('bot-a', 'int-tg', inTopic('7'))).toBe(true)
+    expect(
+      await (daemon as any).commands.commandSenderAllowed('bot-a', 'int-tg', { ...inTopic('7'), thread: undefined })
+    ).toBe(false)
+
+    await daemon.stop()
+  })
+
   it('!queue rejects once the per-session cap (10) is reached', async () => {
     const blocked = blockingHost()
     const daemon = new Daemon({

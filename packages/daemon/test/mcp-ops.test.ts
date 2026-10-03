@@ -34,6 +34,7 @@ const ctx: SessionContext = {
         bindRules: [],
         mutedChannels: [],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }

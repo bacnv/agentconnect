@@ -11,7 +11,8 @@ import {
   type ChildSessionStatus,
   type ExternalSessionAudience,
   type ChildSessionStatusProbe,
-  type RdAgentMsgDeliveryKind
+  type RdAgentMsgDeliveryKind,
+  type ScopeRef
 } from '@agentconnect.md/protocol'
 import type { Logger } from '../log.js'
 import type { LoadedAgent } from '../agents/load-agents.js'
@@ -86,7 +87,7 @@ export interface CollabRoutingHost {
   resolveCpAgent(
     agentId: string,
     platform?: string
-  ): { integrationId: string; botUserId: string; platform: string; mutedChannels: string[] } | null
+  ): { integrationId: string; botUserId: string; platform: string; mutedChannels: ScopeRef[] } | null
   transportScopeForIntegrationIds(integrationIds?: readonly string[]): string | undefined
   integrationIdForSessionTransport(
     agentId: string,

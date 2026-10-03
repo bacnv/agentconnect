@@ -36,6 +36,7 @@ const tools = toolsForIntegrations([
       bindRules: [],
       mutedChannels: [],
       affinityDenied: [],
+      overriddenThreads: [],
       gated: false,
       sessionModes: [],
       decisions: { bindings: [], definitions: [] }

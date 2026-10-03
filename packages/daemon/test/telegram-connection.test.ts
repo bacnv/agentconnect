@@ -213,6 +213,73 @@ describe('TelegramConnection.start', () => {
       isPrivate: true
     })
   })
+
+  it('reports a forum topic named by a service record', async () => {
+    const topics: { chatId: string; threadId: string; name?: string }[] = []
+    const { conn, state } = makeConn({ onForumTopic: (t) => topics.push(t) })
+    await conn.start()
+
+    state.onMessage!({
+      message_id: 10,
+      chat: { id: -100, type: 'supergroup' },
+      message_thread_id: 7,
+      is_topic_message: true,
+      forum_topic_created: { name: 'Deploys' }
+    })
+
+    expect(topics).toEqual([{ chatId: '-100', threadId: '7', name: 'Deploys' }])
+  })
+
+  it('reports a topic learned from traffic, nameless, and still routes the message', async () => {
+    const topics: { chatId: string; threadId: string; name?: string }[] = []
+    const received: unknown[] = []
+    const { conn, state } = makeConn({ onForumTopic: (t) => topics.push(t), onMessage: (m) => received.push(m) })
+    await conn.start()
+
+    state.onMessage!({
+      message_id: 11,
+      chat: { id: -100, type: 'supergroup' },
+      message_thread_id: 7,
+      is_topic_message: true,
+      from: { id: 5, first_name: 'An' },
+      text: 'hello'
+    })
+
+    expect(topics).toEqual([{ chatId: '-100', threadId: '7' }])
+    expect(received).toHaveLength(1)
+  })
+
+  it('reports a nameless topic for a closed/reopened record, never a spurious rename', async () => {
+    const topics: { chatId: string; threadId: string; name?: string }[] = []
+    const { conn, state } = makeConn({ onForumTopic: (t) => topics.push(t) })
+    await conn.start()
+
+    state.onMessage!({
+      message_id: 12,
+      chat: { id: -100, type: 'supergroup' },
+      message_thread_id: 7,
+      is_topic_message: true,
+      forum_topic_closed: {}
+    })
+
+    expect(topics).toEqual([{ chatId: '-100', threadId: '7' }])
+  })
+
+  it('reports nothing for a plain supergroup reply root', async () => {
+    const topics: unknown[] = []
+    const { conn, state } = makeConn({ onForumTopic: (t) => topics.push(t) })
+    await conn.start()
+
+    state.onMessage!({
+      message_id: 13,
+      chat: { id: -100, type: 'supergroup' },
+      message_thread_id: 13,
+      from: { id: 5, first_name: 'An' },
+      text: 'reply'
+    })
+
+    expect(topics).toEqual([])
+  })
 })
 
 describe('TelegramConnection outbound chrome', () => {

@@ -6,7 +6,12 @@ import type { NormalizedMessage } from '../messages/normalized.js'
 import type { Logger } from '../log.js'
 import { isSendQueueTimeout, PlatformSendQueue } from '../platforms/send-queue.js'
 import type { UploadAnchor, UploadFailReason, UploadOutcome } from '../mcp/ops/context.js'
-import { isTelegramMembershipServiceMessage, normalizeTelegramMessage, type TelegramMessage } from './normalize.js'
+import {
+  isTelegramMembershipServiceMessage,
+  normalizeTelegramMessage,
+  telegramForumTopicId,
+  type TelegramMessage
+} from './normalize.js'
 import type { PlatformConnection, PlatformReactionIntent } from '../platforms/contract.js'
 
 /** Core names the intent; Telegram's alphabet is a fixed set of literal emoji. */
@@ -108,11 +113,21 @@ export interface TelegramObservedChat {
   isPrivate: boolean
 }
 
+/** A forum topic learned from a service record or from a message inside it. */
+export interface TelegramObservedTopic {
+  chatId: string
+  threadId: string
+  name?: string
+}
+
 export interface TelegramDeps {
   group: ConsolidatedTelegramGroup
   onMessage: (msg: NormalizedMessage) => void
   /** Membership service records discover chats but never enter message routing. */
   onBotAddedToChat?: (chat: TelegramObservedChat) => void
+  /** A forum topic learned from a service record or from a message inside it. Topics are
+   *  config metadata: they never enter routing, and nothing is ever sent to Telegram. */
+  onForumTopic?: (topic: TelegramObservedTopic) => void
   /** An inline-keyboard button was tapped (session-control cards — /models etc.). */
   onCallback?: (cb: TelegramCallback) => void
   newTraceId: () => string
@@ -299,6 +314,19 @@ export class TelegramConnection implements PlatformConnection {
     log?.debug(`telegram: getMe ok → bot @${this.botUsername || '?'} (id ${this.botUserId || 'n/a'})`)
 
     this.bot.onMessage((message) => {
+      // Two sources, one sink: a service record names the topic, any message inside one only
+      // reveals it. Reporting here rather than after normalize keeps a created/edited record
+      // from being reported twice, and a closed/reopened record (no name) from looking like a
+      // rename. Config metadata — nothing is ever sent to Telegram.
+      const topicId = telegramForumTopicId(message)
+      if (topicId !== undefined) {
+        const name = message.forum_topic_created?.name ?? message.forum_topic_edited?.name
+        this.deps.onForumTopic?.({
+          chatId: String(message.chat.id),
+          threadId: topicId,
+          ...(name !== undefined ? { name } : {})
+        })
+      }
       if (isTelegramMembershipServiceMessage(message)) {
         const botWasAdded = message.new_chat_members?.some((member) => String(member.id) === this.botUserId) === true
         if (botWasAdded) {

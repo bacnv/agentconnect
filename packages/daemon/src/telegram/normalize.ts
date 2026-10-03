@@ -4,6 +4,7 @@ export {
   quotedFromTelegramReply,
   telegramMessageUrl,
   telegramThread,
+  telegramForumTopicId,
   toTelegramDocumentAttachment as documentToAttachment,
   toTelegramPhotoAttachment as photoToAttachment
 } from '@agentconnect.md/message'

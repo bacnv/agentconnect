@@ -5421,6 +5421,14 @@ export function isDirectConversationKind(kind: ConversationKind | undefined): bo
   return kind === 'im' || kind === 'mpim'
 }
 
+/** A thread of a conversation that carries its own trigger (a Telegram forum topic).
+ *  `trigger: null` = inherit the enclosing conversation's, which is what every topic starts on. */
+export interface IntegrationChannelThreadRecord {
+  threadId: string
+  name: string | null
+  trigger: ChannelTrigger | null
+}
+
 /** One conversation the integration's bot participates in, as reported by the daemon. */
 export interface IntegrationChannelRecord {
   integrationId: IntegrationId
@@ -5464,6 +5472,9 @@ export interface IntegrationChannelRecord {
   agentId: AgentId | null
   /** Why the platform detected this place as external (assistant-mode.md §5.3); null is internal. Optional for older fixtures. */
   externalReason?: PlaceExternalReason | null
+  /** The conversation's own configurable threads, where the platform has them. Empty
+   *  everywhere else, and empty until the daemon has learned one. */
+  threads: IntegrationChannelThreadRecord[]
 }
 
 /** Daemon-reported conversation (no trigger — that is operator-owned CP state). */
@@ -5490,6 +5501,10 @@ export interface ReportedChannel {
   dmUserId?: string
   /** Detected external: absent leaves the stored value, null is an enumerating "not external". */
   externalReason?: PlaceExternalReason | null
+  /** The conversation's own threads (a Telegram forum topic). A reported thread is
+   *  only ever ADDED or re-named — a report never deletes one, since no platform
+   *  reports a topic deletion. Absent everywhere the platform has no threads. */
+  threads?: { id: string; name?: string }[]
 }
 
 /**
@@ -5562,6 +5577,12 @@ export interface IntegrationChannelRepo {
     channelId: string,
     sessionMode: ChannelSessionMode
   ): Promise<IntegrationChannelRecord | null>
+  setThreadTrigger(
+    integrationId: IntegrationId,
+    channelId: string,
+    threadId: string,
+    trigger: ChannelTrigger | null
+  ): Promise<IntegrationChannelThreadRecord | null>
   /** Set or clear this integration row's owner marker. The orchestrator keeps
    *  exactly one row marked per shared conversation. Returns null when missing. */
   setAgent(
