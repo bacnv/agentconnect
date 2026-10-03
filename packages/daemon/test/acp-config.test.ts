@@ -109,6 +109,26 @@ describe('planConfigSelection', () => {
     expect(planConfigSelection(claudeLike({ effort: 'high' }), 'thought_level', 'high')).toEqual({ current: true })
   })
 
+  it('treats "already current" as unknown-but-harmless for the resume-time model select', () => {
+    // On resume the runtime's `currentValue` comes from the transcript, which holds
+    // whatever the PROVIDER echoed back — a gateway combo echoes its UPSTREAM name
+    // (`DeepSeek-V4-Flash`) while reporting the id the reconciler mapped it to. So an
+    // equal currentValue cannot prove the session is running the value, and reading it
+    // as `current` is what let a session run the bare upstream name into a
+    // model_not_found.
+    expect(planConfigSelection(claudeLike({ model: 'claude-sonnet-5' }), 'model', 'claude-sonnet-5', true)).toEqual({
+      configId: 'model',
+      value: 'claude-sonnet-5'
+    })
+  })
+
+  it('re-asserts only the model — an echoed value is a model-only hazard', () => {
+    expect(planConfigSelection(claudeLike({ effort: 'high' }), 'thought_level', 'high', true)).toEqual({
+      current: true
+    })
+    expect(planConfigSelection(claudeLike(), 'mode', 'default', true)).toEqual({ current: true })
+  })
+
   it('ignores non-select options in the category', () => {
     const boolOnly: SessionConfigOption[] = [
       { id: 'fast', name: 'Fast mode', category: 'model_config', type: 'boolean', currentValue: false }

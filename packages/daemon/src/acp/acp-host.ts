@@ -376,11 +376,12 @@ export function turnFailureCode(err: unknown): TurnFailureCode {
     : 'turn_failed'
 }
 
-/** Resolve `desired` for the `category` select: send it, it is already `current`, or `skip` (not offered). */
+/** Resolve `desired` for the `category` select: send it, it is already `current`, or `skip` (not offered). `reassert` re-sends a model the runtime only reports as current, because on a resumed session that value is the transcript's echo of the provider's own name, not proof of what is running. */
 export function planConfigSelection(
   configOptions: SessionConfigOption[] | null | undefined,
   category: string,
-  desired: string
+  desired: string,
+  reassert = false
 ): ConfigSelectionPlan {
   const opt = configOptions?.find((o) => o.category === category && o.type === 'select')
   if (!opt || opt.type !== 'select') return { skip: `runtime advertises no ${category} selector` }
@@ -388,7 +389,10 @@ export function planConfigSelection(
   if (!values.includes(desired)) {
     return { skip: `value "${desired}" not offered (available: ${values.join(', ')})` }
   }
-  if (opt.currentValue === desired) return { current: true }
+  // Already in effect is success (#2774) — except the model on a resumed session, which
+  // must be re-asserted rather than skipped (see planConfigSelection's reassert).
+  if (opt.currentValue === desired)
+    return reassert && category === 'model' ? { configId: opt.id, value: desired } : { current: true }
   return { configId: opt.id, value: desired }
 }
 
@@ -1027,7 +1031,8 @@ export class AcpHost {
   /** Apply model first, then dependent preferences; a rejected model stops session setup. */
   private async applySessionConfig(
     sessionId: string,
-    initial: SessionConfigOption[] | null | undefined
+    initial: SessionConfigOption[] | null | undefined,
+    reassertModel = false
   ): Promise<SessionConfigOption[] | null | undefined> {
     let options = initial
     // ultracode rides session metadata and forces xhigh; it is not a thought_level select value.
@@ -1043,7 +1048,7 @@ export class AcpHost {
     for (const [category, desired] of prefs) {
       if (!desired) continue
       try {
-        options = (await this.selectSessionConfig(sessionId, options, category, desired)) ?? options
+        options = (await this.selectSessionConfig(sessionId, options, category, desired, reassertModel)) ?? options
       } catch (err) {
         if (err instanceof ModelSelectionError) throw err
         this.opts.log?.warn(`acp: failed to set session config ${category}="${desired}": ${turnFailureReason(err)}`)
@@ -1099,9 +1104,10 @@ export class AcpHost {
     sessionId: string,
     options: SessionConfigOption[] | null | undefined,
     category: string,
-    value: string
+    value: string,
+    reassert = false
   ): Promise<SessionConfigOption[] | undefined> {
-    const plan = planConfigSelection(options, category, value)
+    const plan = planConfigSelection(options, category, value, reassert)
     // Already in effect is success: read-only gates re-assert a mode the session may already hold (#2774).
     if ('current' in plan) return options ?? undefined
     if ('skip' in plan) {
@@ -1275,8 +1281,9 @@ export class AcpHost {
       })
       this.live.set(sessionId, cwd)
       // Re-apply config prefs: ACP sessions restore their own last model/effort,
-      // which may predate a CP-side agent edit.
-      const configOptions = await this.applySessionConfig(sessionId, res.configOptions)
+      // which may predate a CP-side agent edit. The model is re-asserted even when
+      // the runtime reports it as current — that report is the transcript's echo.
+      const configOptions = await this.applySessionConfig(sessionId, res.configOptions, true)
       // Refresh the selectors from the reconciled options — a resumed session must
       // report its own model/effort/fast, not stale ones from the last session/new (or
       // null if this process never created one). Mirrors newSession().
