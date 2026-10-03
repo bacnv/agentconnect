@@ -50,6 +50,7 @@ describe('QQ images through the daemon', () => {
           bindRules: [{ match: { kind: 'dm' as const } }, { match: { kind: 'mention' as const } }],
           mutedChannels: [],
           affinityDenied: [],
+          overriddenThreads: [],
           sessionModes: [],
           decisions: { bindings: [], definitions: [] },
           gated: false

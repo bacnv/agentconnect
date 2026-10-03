@@ -53,6 +53,7 @@ const CORE: IntegrationCoreEnvelope = {
   bindRules: [],
   mutedChannels: [],
   affinityDenied: [],
+  overriddenThreads: [],
   gated: false,
   sessionModes: [],
   decisions: { bindings: [], definitions: [] }

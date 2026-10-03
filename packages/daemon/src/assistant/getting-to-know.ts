@@ -303,7 +303,7 @@ export function gettingToKnowPlaceRefusal(
   if (place.heldByTask === true) return 'task-workspace'
   if (!declaresPort(int.platform, 'channelHistory')) return 'no-history'
   if (conversationTrustLevel(int, place.channel) === 'external') return 'external'
-  if (!conversationAdmitted(integrationRouting(int), place.channel)) return 'off'
+  if (!conversationAdmitted(integrationRouting(int), place.channel, undefined)) return 'off'
   return undefined
 }
 
