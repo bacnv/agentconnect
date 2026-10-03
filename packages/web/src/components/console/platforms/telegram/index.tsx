@@ -34,9 +34,8 @@ export const telegramModule: WebPlatformModule<TelegramApi> = {
     roomGlyph: '',
     // `leaveChat` needs no extra permission, so a row can be left from the console.
     leave: 'conversation',
-    // The reply arm works because the daemon records each post's platform message id
-    // beside the bot's own identity, so a reply resolves to the agent that was answered.
-    triggers: ['off', 'mention', 'mention_topic', 'any'],
+    // Replies resolve to the answered agent; groups also retain upstream's By decision trigger.
+    triggers: ['off', 'mention', 'mention_topic', 'any', 'decision'],
     // A forum topic is a real sub-conversation the bot can be addressed in without the group
     // hearing it, so it carries a trigger of its own — the group's rules are then suspended there.
     threadTriggers: ['off', 'mention', 'mention_topic', 'any']

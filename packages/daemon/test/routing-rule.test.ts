@@ -478,7 +478,6 @@ describe('conversationAdmitted', () => {
 
   it('lets the mute override an enabling rule — the two fences are independent', () => {
     const r = routing({
-      affinityDenied: [],
       overriddenThreads: [],
       gated: true,
       mutedChannels: ['C1'],
@@ -590,7 +589,9 @@ describe('affinityDenied (§6.4 core-envelope read, mirroring mutedChannels)', (
             mutedChannels: ['C9'],
             affinityDenied: ['C-T'],
             overriddenThreads: [],
-            gated: false
+            gated: false,
+            sessionModes: [],
+            decisions: { bindings: [], definitions: [] }
           },
           config: { botToken: 'x', botUserId: 'BTG' } as any
         }

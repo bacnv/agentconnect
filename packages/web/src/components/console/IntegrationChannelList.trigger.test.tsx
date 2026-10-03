@@ -46,10 +46,10 @@ async function openMenu(channels: Parameters<typeof IntegrationChannelList>[0]['
     root.render(createElement(IntegrationChannelList, { platform, integrationId: 'int-1', gated: false, channels }))
   )
   const trigger = [...document.querySelectorAll('button')].find((b) =>
-    b.getAttribute('aria-label')?.startsWith('Trigger for')
+    b.getAttribute('aria-label')?.startsWith('Settings for')
   )!
   await act(async () => trigger.click())
-  return [...document.querySelectorAll('[role="menuitemradio"]')]
+  return [...[...document.querySelectorAll('[role="group"]')][0]!.querySelectorAll('[role="menuitemradio"]')]
 }
 
 const menuFor = async (platform: string): Promise<string[]> =>
@@ -84,17 +84,17 @@ const topicItems = async (threads: Topic[]) => (await openTopic(threads)).map((o
 
 describe('the trigger menu’s platform vocabulary', () => {
   it('offers the reply option on Telegram', async () => {
-    expect(await menuFor('telegram')).toEqual(['off', 'any message', '@-mention', '@-mention + reply'])
+    expect(await menuFor('telegram')).toEqual(['@-mentions', 'All messages', 'mention + reply', 'Off'])
   })
 
   it('keeps the three agnostic values where the platform declares no allow-list', async () => {
     // Slack's module declares no `triggers`, so the host default applies — the fourth
     // value must not leak to a platform with no reply-derived continuity.
-    expect(await menuFor('slack')).toEqual(['off', 'any message', '@-mention'])
+    expect(await menuFor('slack')).toEqual(['@-mentions', 'All messages', 'Off'])
   })
 
   it('never offers the reply option on Linear', async () => {
-    expect(await menuFor('linear')).not.toContain('@-mention + reply')
+    expect(await menuFor('linear')).not.toContain('mention + reply')
   })
 })
 
@@ -102,10 +102,10 @@ describe('the topic rows a conversation discloses', () => {
   it('offers Follow group ahead of the four values on a topic', async () => {
     expect(await topicItems([{ threadId: '7', name: 'Deploys', trigger: null }])).toEqual([
       'Follow group',
-      'off',
-      'any message',
-      '@-mention',
-      '@-mention + reply'
+      'Off',
+      'All messages',
+      '@-mentions',
+      'mention + reply'
     ])
   })
 

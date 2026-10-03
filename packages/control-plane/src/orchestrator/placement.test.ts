@@ -944,4 +944,3 @@ describe('integrationToSpec thread overrides', () => {
     expect(spec.core?.mutedChannels).toEqual([])
   })
 })
-

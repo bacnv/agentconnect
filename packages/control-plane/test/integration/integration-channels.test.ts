@@ -1693,8 +1693,7 @@ describe('PATCH /integrations/:id/channels/:channelId', () => {
           channelId: 'C1',
           name: 'deploys',
           trigger: 'mention',
-          agentId: null,
-          threads: []
+          agentId: null
         },
         {
           integrationId: aliceIntegration,
@@ -1888,8 +1887,7 @@ describe('PATCH /integrations/:id/channels/:channelId', () => {
           channelId: 'C1',
           name: 'deploys',
           trigger: 'mention',
-          agentId: null,
-          threads: []
+          agentId: null
         },
         {
           integrationId: bobIntegration,

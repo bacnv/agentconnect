@@ -1174,7 +1174,7 @@ export class CommandHandlers {
   ): Promise<string[]> {
     const transportScope = this.host.transportScopeForIntegrationIds(srcIntegrationIds)
     const keys: string[] = []
-    for (const agentId of this.admittedAgentIds('slack', shortcut.channel, srcIntegrationIds)) {
+    for (const agentId of this.admittedAgentIds('slack', shortcut.channel, srcIntegrationIds, shortcut.thread)) {
       // The tapped thread holds no session where the conversation appends — its session is
       // at the coordinate in force — so Stop would cancel nothing. Read-only: a Stop click
       // must not create the conversation it is trying to interrupt.

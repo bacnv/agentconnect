@@ -19457,6 +19457,10 @@ export class Daemon {
   > {
     const int = this.integrationConfigById(integrationId)
     const routing = int ? integrationRouting(int) : undefined
+    // A topic's own trigger suspends the group's decision fence, just as it suspends its ladder rules.
+    if (routing?.overriddenThreads.some((t) => t.channel === targetMsg.channel && t.thread === targetMsg.thread)) {
+      return { kind: 'not_bound' }
+    }
     const { relayDecisionId } = ctx
     if (!int || !routing?.decisionBound(targetMsg.channel)) {
       if (relayDecisionId === undefined) return { kind: 'not_bound' }

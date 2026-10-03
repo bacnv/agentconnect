@@ -940,7 +940,7 @@ export type ChannelSessionMode = 'createNew' | 'append'
 export interface IntegrationChannelThreadDto {
   threadId: string
   name: string | null
-  trigger: ChannelTrigger | null
+  trigger: Exclude<ChannelTrigger, 'decision'> | null
 }
 
 // One conversation the integration's bot is in (daemon-reported) + its trigger
@@ -4571,7 +4571,7 @@ export async function updateIntegrationChannelThread(
   integrationId: string,
   channelId: string,
   threadId: string,
-  patch: { trigger: ChannelTrigger | null },
+  patch: { trigger: Exclude<ChannelTrigger, 'decision'> | null },
   orgId?: string
 ): Promise<IntegrationChannelThreadDto> {
   return apiPatch<IntegrationChannelThreadDto>(

@@ -19,6 +19,7 @@ const ctx: SessionContext = {
   isDm: false,
   channel: '-1001234567890',
   thread: '-1001234567890:42',
+  deliveryThread: '-1001234567890:42',
   tools: toolsForIntegrations([
     {
       id: 'int-tg',

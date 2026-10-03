@@ -42,6 +42,8 @@ function integration(config: unknown, id = 'int-1'): Integration {
       mode: 'shared',
       bindRules: [],
       mutedChannels: [],
+      affinityDenied: [],
+      overriddenThreads: [],
       gated: false,
       sessionModes: [],
       decisions: { bindings: [], definitions: [] }

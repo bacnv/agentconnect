@@ -19,6 +19,7 @@ const ctx: SessionContext = {
   isDm: false,
   channel: '-1001234567890',
   thread: '-1001234567890:42',
+  deliveryThread: '-1001234567890:42',
   tools: toolsForIntegrations([
     {
       id: 'int-tg',
@@ -95,19 +96,37 @@ describe('scheduleCron', () => {
   it('carries the forum topic as a container, and no other thread, into the target', async () => {
     const d = deps()
     // A numeric thread on Telegram IS a forum topic — a container the fire must land inside.
-    await scheduleCron({ ...ctx, thread: '6' }, args, d)
+    await scheduleCron({ ...ctx, thread: '6', deliveryThread: '6' }, args, d)
     expect(d.seen[0]!.target).toMatchObject({ channel: '-1001234567890', thread: '6' })
+
+    const appended = deps()
+    await scheduleCron({ ...ctx, thread: 'append:conversation', deliveryThread: '6' }, args, appended)
+    expect(appended.seen[0]!.target).toMatchObject({ channel: '-1001234567890', thread: '6' })
 
     // A `tg:` reply-root is a sub-conversation, not a place: sending it would revive the
     // very thread the fire is supposed to leave behind.
     const reply = deps()
-    await scheduleCron({ ...ctx, thread: 'tg:132914' }, args, reply)
+    await scheduleCron({ ...ctx, thread: 'tg:132914', deliveryThread: 'tg:132914' }, args, reply)
     expect(reply.seen[0]!.target).not.toHaveProperty('thread')
 
     // Slack's thread_ts is a sub-conversation too — a wake opens a NEW thread there.
     const slack = deps()
-    await scheduleCron({ ...ctx, platform: 'slack', thread: '1700.1' }, args, slack)
+    await scheduleCron({ ...ctx, platform: 'slack', thread: '1700.1', deliveryThread: '1700.1' }, args, slack)
     expect(slack.seen[0]!.target).not.toHaveProperty('thread')
+  })
+
+  it('targets the live turn topic, falling back to the opening topic between turns', async () => {
+    const d = deps()
+    const appended: SessionContext = { ...ctx, thread: 'append:conversation', deliveryThread: '6' }
+    const deliveryThreadNow = vi.fn<() => string | undefined>(() => '7')
+
+    await scheduleCron(appended, args, { ...d, deliveryThreadNow })
+    expect(d.seen[0]!.target.thread).toBe('7')
+    expect(deliveryThreadNow).toHaveBeenCalledWith(appended)
+
+    deliveryThreadNow.mockReturnValue(undefined)
+    await scheduleCron(appended, args, { ...d, deliveryThreadNow })
+    expect(d.seen[1]!.target.thread).toBe('6')
   })
 
   it('carries the CP’s refusal back to the agent verbatim', async () => {

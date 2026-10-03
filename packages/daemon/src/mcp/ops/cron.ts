@@ -4,6 +4,7 @@ import type { CronAuthor, CronAuthorOk, CronCancel, CronCancelOk } from '@agentc
 import { threadContainerFor } from '../../platforms/thread-keys.js'
 import { optionalString, parseArgs, requiredString, unexpectedKeys } from './args.js'
 import type { SessionContext } from './context.js'
+import type { GatewayDeps } from './gateway.js'
 
 /**
  * `scheduleCron` — an agent schedules itself
@@ -24,9 +25,8 @@ export const SCHEDULE_CRON_ARGS = z.strictObject(
   unexpectedKeys
 )
 
-/** The one seam this op has: it talks to the control plane, never to a platform gateway.
- *  Absent where there is no connected CP — refused at call time rather than at dispatch. */
-export interface CronAuthorDeps {
+/** Control-plane writes plus the trusted live-turn thread; missing CP access is refused at call time. */
+export interface CronAuthorDeps extends Pick<GatewayDeps, 'deliveryThreadNow'> {
   authorCron?: (req: CronAuthor) => Promise<CronAuthorOk>
   cancelCron?: (req: CronCancel) => Promise<CronCancelOk>
 }
@@ -63,9 +63,8 @@ export async function scheduleCron(
     throw new Error('scheduleCron: this session has no platform integration, so there is no conversation to fire into.')
   }
   if (!deps.authorCron) throw new Error('scheduleCron is not available in this environment.')
-  // The CONTAINER the conversation sits in, when the platform has one (a Telegram forum topic).
-  // Not `ctx.thread` as such: on Slack that IS the sub-thread the fire must leave behind.
-  const container = threadContainerFor(ctx.platform, ctx.thread)
+  // Capture the live turn's container (e.g. a forum topic); the opening turn is only the between-turn fallback.
+  const container = threadContainerFor(ctx.platform, deps.deliveryThreadNow?.(ctx) ?? ctx.deliveryThread)
   const ok = await deps.authorCron({
     requestId: randomUUID(),
     agentId: ctx.agentId,

@@ -122,7 +122,6 @@ function refCovers(ref: ScopeRef, channel: string, thread: string | undefined, o
   return ref.channel === channel && ref.thread === thread
 }
 
-
 /**
  * Resolve an agent to an integration's `{ integrationId, botUserId, platform }`. When
  * `platform` is given, prefer the integration on that platform (a multi-platform agent may
@@ -162,7 +161,7 @@ export function resolveAgentIntegration(
     platform: int.platform,
     mutedChannels,
     affinityDenied,
-    affinityDenied
+    overriddenThreads
   }
 }
 
@@ -181,7 +180,6 @@ export function rulesFromAgent(agent: Agent, botUserIds: Record<string, string>)
         scope: { ...(br.channel ? { channel: br.channel } : {}), ...(br.thread ? { thread: br.thread } : {}) },
         match: br.match,
         mutedChannels,
-    affinityDenied,
         affinityDenied,
         overriddenThreads,
         source: 'config',

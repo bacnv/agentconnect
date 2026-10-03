@@ -205,25 +205,39 @@ function ThreadTriggerToggle({
   platform?: string
   disabled: boolean
   /** `null` = follow the conversation's trigger, which is what clearing a topic's override writes. */
-  onChange: (trigger: IntegrationChannelRow['trigger'] | null) => void
+  onChange: (trigger: Exclude<IntegrationChannelRow['trigger'], 'decision'> | null) => void
 }) {
   const [saving, setSaving] = useState(false)
-  const value: 'inherit' | IntegrationChannelRow['trigger'] = thread.trigger ?? 'inherit'
-  const pick = (next: 'inherit' | IntegrationChannelRow['trigger']) => {
+  const value: 'inherit' | Exclude<IntegrationChannelRow['trigger'], 'decision'> = thread.trigger ?? 'inherit'
+  const pick = (next: 'inherit' | Exclude<IntegrationChannelRow['trigger'], 'decision'>) => {
     if (disabled || saving || next === value) return
     setSaving(true)
     Promise.resolve(onChange(next === 'inherit' ? null : next)).finally(() => setSaving(false))
   }
   const t = useTranslations('Integrations.channelList')
   const allowed = channelListSemantics(platform).threadTriggers ?? []
-  const options: TriggerOption<'inherit' | IntegrationChannelRow['trigger']>[] = [
-    { value: 'inherit', label: t('topics.followGroup'), hint: t('topics.followGroupHint', { group: rowLabel(channel) }) },
-    ...([
-      { value: 'off', label: t('trigger.off'), hint: t('trigger.offHint', { room: rowLabel(channel) }) },
-      { value: 'any', label: t('trigger.anyMessage'), hint: t('trigger.anyMessageHint', { room: rowLabel(channel) }) },
-      { value: 'mention', label: t('trigger.mention'), hint: t('trigger.mentionHint') },
-      { value: 'mention_topic', label: t('trigger.mentionTopic'), hint: t('trigger.mentionTopicHint', { room: rowLabel(channel) }) }
-    ] satisfies TriggerOption<IntegrationChannelRow['trigger']>[]).filter((o) => allowed.includes(o.value))
+  const options: TriggerOption<'inherit' | Exclude<IntegrationChannelRow['trigger'], 'decision'>>[] = [
+    {
+      value: 'inherit',
+      label: t('topics.followGroup'),
+      hint: t('topics.followGroupHint', { group: rowLabel(channel) })
+    },
+    ...(
+      [
+        { value: 'off', label: t('trigger.off'), hint: t('trigger.offHint', { room: rowLabel(channel) }) },
+        {
+          value: 'any',
+          label: t('trigger.anyMessage'),
+          hint: t('trigger.anyMessageHint', { room: rowLabel(channel) })
+        },
+        { value: 'mention', label: t('trigger.mention'), hint: t('trigger.mentionHint') },
+        {
+          value: 'mention_topic',
+          label: t('trigger.mentionTopic'),
+          hint: t('trigger.mentionTopicHint', { room: rowLabel(channel) })
+        }
+      ] satisfies TriggerOption<Exclude<IntegrationChannelRow['trigger'], 'decision'>>[]
+    ).filter((o) => allowed.includes(o.value))
   ]
   const name = thread.name ?? `Topic ${thread.threadId}`
   return (
@@ -1048,11 +1062,18 @@ export function IntegrationChannelList({
               onSessionMode={(mode) => setChannelSessionMode(integrationId!, c.channelId, mode)}
             />
             {topics(c).length > 0 && (
-              <button type="button" aria-expanded={openThreads[c.channelId] === true}
+              <button
+                type="button"
+                aria-expanded={openThreads[c.channelId] === true}
                 aria-label={`Topics of ${rowLabel(c)}`}
                 onClick={() => setOpenThreads((v) => ({ ...v, [c.channelId]: v[c.channelId] !== true }))}
-                className="iconbtn h-6 w-6 flex-none">
-                <Icon name={openThreads[c.channelId] === true ? 'chevron-down' : 'chevron-right'} size={13} color="var(--text-tertiary)" />
+                className="iconbtn h-6 w-6 flex-none"
+              >
+                <Icon
+                  name={openThreads[c.channelId] === true ? 'chevron-down' : 'chevron-right'}
+                  size={13}
+                  color="var(--text-tertiary)"
+                />
               </button>
             )}
             {/* Demo rows carry no button rather than an inert one, and a derived roster none at all — the

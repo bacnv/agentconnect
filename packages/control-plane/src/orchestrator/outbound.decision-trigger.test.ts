@@ -21,6 +21,8 @@ const spec: IntegrationSpec = {
     mode: 'direct',
     bindRules: [{ channel: 'C1', match: { kind: 'decision' } }],
     mutedChannels: [],
+    affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [{ channel: 'C1', consumer: gate, enabled: true }], definitions: [] }

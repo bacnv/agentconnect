@@ -1484,7 +1484,13 @@ export const ALL_TOOL_NAMES = [
  */
 export function toolsForIntegrations(
   integrations: Integration[],
-  options: { organizationKnowledge?: boolean; decisions?: boolean; currentPlatform?: string; cronAuthor?: boolean; cronCancel?: boolean } = {}
+  options: {
+    organizationKnowledge?: boolean
+    decisions?: boolean
+    currentPlatform?: string
+    cronAuthor?: boolean
+    cronCancel?: boolean
+  } = {}
 ): ToolDescriptor[] {
   const tools: ToolDescriptor[] = []
   const seen = new Set<string>()
