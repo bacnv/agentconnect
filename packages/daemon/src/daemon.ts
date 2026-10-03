@@ -1101,6 +1101,8 @@ import type {
   RelayRosterEntry,
   CronReport,
   FactsMcpServer,
+  ScopeRef,
+  ThreadRef,
   IntegrationChannel,
   Drain,
   DrainProgress,
@@ -2820,6 +2822,8 @@ export class Daemon {
         this.observedChannelsSync.observeTelegramChat(chat, integrationIds),
       migrateTelegramChat: (migration, integrationIds) =>
         this.observedChannelsSync.migrateTelegramChat(migration, integrationIds),
+      observeForumTopic: (platform, topic, integrationIds) =>
+        this.observedChannelsSync.observeForumTopic(platform, topic, integrationIds),
       observePlatformChat: (platform, chat, integrationIds) =>
         this.observedChannelsSync.observePlatformChat(platform, chat, integrationIds),
       observePlatformChats: (platform, chats, integrationIds) =>
@@ -10368,7 +10372,7 @@ export class Daemon {
       reminders: this.store.assistantReminders,
       placeEnabled: (agentId, integrationId, channel) => {
         const int = this.agents.get(agentId)?.integrations.find((i) => i.id === integrationId)
-        return int !== undefined && conversationAdmitted(integrationRouting(int), channel)
+        return int !== undefined && conversationAdmitted(integrationRouting(int), channel, undefined)
       },
       post: (reminder) => this.postReminder(reminder)
     })
@@ -12501,7 +12505,7 @@ export class Daemon {
   }
 
   private agentConversationAdmits(agentId: string, msg: NormalizedMessage): boolean {
-    return conversationAdmitsAgent(this.mergedRules(), agentId, msg.channel)
+    return conversationAdmitsAgent(this.mergedRules(), agentId, msg.channel, msg.thread)
   }
 
   /** Admit one verified agent-authored target via the activation rendezvous (§3.2/§8.6); a paired call's visible half only claims, its wake carries the envelope. */
@@ -13952,7 +13956,7 @@ export class Daemon {
     if (!agent || !int) return { msgId: msg.msgId, accepted: false, reason: 'not_found' }
     const welcome = buildWelcome({
       isDm: added.isDm,
-      enabled: conversationAdmitted(integrationRouting(int), added.channel),
+      enabled: conversationAdmitted(integrationRouting(int), added.channel, undefined),
       consoleUrl: this.agentLink(agent.id)
     })
     try {
@@ -14066,7 +14070,7 @@ export class Daemon {
     }
     if (payload.kind === 'open-config-for-thread') {
       const routing = integrationRouting(integration)
-      const unauthorized = !conversationAdmitted(routing, payload.channelId)
+      const unauthorized = !conversationAdmitted(routing, payload.channelId, payload.threadTs)
       const transportScope = this.transportScopeForIntegrationIds([integration.id])
       // A conversation that appends has no session at the tapped thread — its session lives
       // at the coordinate in force, so look there rather than reporting "no session".
@@ -15919,7 +15923,13 @@ export class Daemon {
   private resolveCpAgent(
     agentId: string,
     platform?: string
-  ): { integrationId: string; botUserId: string; platform: string; mutedChannels: string[] } | null {
+  ): {
+    integrationId: string
+    botUserId: string
+    platform: string
+    mutedChannels: ScopeRef[]
+    overriddenThreads: ThreadRef[]
+  } | null {
     return resolveAgentIntegration(this.agents.get(agentId), this.botUserIds, platform)
   }
 
@@ -24253,7 +24263,7 @@ export class Daemon {
   private gatedAdmission(integrationId: string, msg: NormalizedMessage): boolean {
     const int = this.integrationConfigById(integrationId)
     if (!int) return true // unknown here — agent/integration existence is checked separately
-    return conversationAdmitted(integrationRouting(int), msg.channel)
+    return conversationAdmitted(integrationRouting(int), msg.channel, msg.thread)
   }
 
   /** Observed-conversation discovery, report-only: surface every human direct

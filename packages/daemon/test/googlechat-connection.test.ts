@@ -43,6 +43,7 @@ function integration(config: unknown, id = 'int-1'): Integration {
       bindRules: [],
       mutedChannels: [],
       affinityDenied: [],
+      overriddenThreads: [],
       gated: false,
       sessionModes: [],
       decisions: { bindings: [], definitions: [] }
