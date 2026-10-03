@@ -13,6 +13,7 @@ import {
   type ChannelSettingsGroup,
   type ChannelSettingsOption
 } from '@/components/console/ChannelSettingsPopover'
+import { TriggerSelect, type TriggerOption } from '@/components/console/TriggerSelect'
 import { useOwnerChangeGuard } from '@/components/console/OwnerChangeGuard'
 import { useChannelGates } from '@/components/console/decisions/channel-gates'
 import { managedByRouting } from '@/lib/decisions/binding'
@@ -187,6 +188,55 @@ function RowSettings({
       )}
       <ChannelSettingsPopover groups={groups} name={rowLabel(channel)} disabled={disabled} />
     </span>
+  )
+}
+
+/** A topic's own trigger control: the conversation's vocabulary plus a display-only
+ *  `'inherit'`, whose wire value is `null` — the same value clearing an override writes back. */
+function ThreadTriggerToggle({
+  channel,
+  thread,
+  platform,
+  disabled,
+  onChange
+}: {
+  channel: IntegrationChannelRow
+  thread: NonNullable<IntegrationChannelRow['threads']>[number]
+  platform?: string
+  disabled: boolean
+  /** `null` = follow the conversation's trigger, which is what clearing a topic's override writes. */
+  onChange: (trigger: IntegrationChannelRow['trigger'] | null) => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const value: 'inherit' | IntegrationChannelRow['trigger'] = thread.trigger ?? 'inherit'
+  const pick = (next: 'inherit' | IntegrationChannelRow['trigger']) => {
+    if (disabled || saving || next === value) return
+    setSaving(true)
+    Promise.resolve(onChange(next === 'inherit' ? null : next)).finally(() => setSaving(false))
+  }
+  const t = useTranslations('Integrations.channelList')
+  const allowed = channelListSemantics(platform).threadTriggers ?? []
+  const options: TriggerOption<'inherit' | IntegrationChannelRow['trigger']>[] = [
+    { value: 'inherit', label: t('topics.followGroup'), hint: t('topics.followGroupHint', { group: rowLabel(channel) }) },
+    ...([
+      { value: 'off', label: t('trigger.off'), hint: t('trigger.offHint', { room: rowLabel(channel) }) },
+      { value: 'any', label: t('trigger.anyMessage'), hint: t('trigger.anyMessageHint', { room: rowLabel(channel) }) },
+      { value: 'mention', label: t('trigger.mention'), hint: t('trigger.mentionHint') },
+      { value: 'mention_topic', label: t('trigger.mentionTopic'), hint: t('trigger.mentionTopicHint', { room: rowLabel(channel) }) }
+    ] satisfies TriggerOption<IntegrationChannelRow['trigger']>[]).filter((o) => allowed.includes(o.value))
+  ]
+  const name = thread.name ?? `Topic ${thread.threadId}`
+  return (
+    <TriggerSelect
+      options={options}
+      value={value}
+      onChange={pick}
+      ariaLabel={`Trigger for ${name}`}
+      hint="Topic trigger — overrides the group's"
+      disabled={disabled}
+      busy={saving}
+      className="max-desktop:w-full"
+    />
   )
 }
 
@@ -786,6 +836,7 @@ export function IntegrationChannelList({
   const t = useTranslations('Integrations.channelList')
   const translate: ChannelListTranslator = (key, values) => t(key as never, values as never)
   const {
+    setThreadTrigger,
     setChannelSessionMode,
     setChannelAgent,
     forgetChannel,
@@ -855,6 +906,12 @@ export function IntegrationChannelList({
     const explicit = c.agentId ?? owners?.get(c.channelId)
     return (explicit ? members.find((m) => m.id === explicit) : undefined) ?? members[0]
   }
+  // Keyed by conversation, on the LIST rather than inside `row`: the list re-renders on every
+  // mutation, so a per-row state would collapse the disclosure the operator just opened.
+  const [openThreads, setOpenThreads] = useState<Record<string, boolean>>({})
+  // Only where the platform declares topic support, so a stray `threads` array on a platform
+  // that never meant them renders nothing rather than a control it has no route for.
+  const topics = (c: IntegrationChannelRow) => (channelListSemantics(platform).threadTriggers ? (c.threads ?? []) : [])
   const channelRows = channels.filter((c) => !isDirectConversation(c.kind))
   // Direct rows keep their compact On/Off trigger control; shared bots project it
   // bot-wide just like channels.
@@ -990,6 +1047,14 @@ export function IntegrationChannelList({
               onTrigger={(next) => pickTrigger(c, next)}
               onSessionMode={(mode) => setChannelSessionMode(integrationId!, c.channelId, mode)}
             />
+            {topics(c).length > 0 && (
+              <button type="button" aria-expanded={openThreads[c.channelId] === true}
+                aria-label={`Topics of ${rowLabel(c)}`}
+                onClick={() => setOpenThreads((v) => ({ ...v, [c.channelId]: v[c.channelId] !== true }))}
+                className="iconbtn h-6 w-6 flex-none">
+                <Icon name={openThreads[c.channelId] === true ? 'chevron-down' : 'chevron-right'} size={13} color="var(--text-tertiary)" />
+              </button>
+            )}
             {/* Demo rows carry no button rather than an inert one, and a derived roster none at all — the
               platform owns the list. Which of the two callbacks a row spends is `rowMenuAction`'s call. */}
             {integrationId && !derivedRoster && (
@@ -1033,7 +1098,30 @@ export function IntegrationChannelList({
       {grouped.map((g) => (
         <Fragment key={g.key || '(unscoped)'}>
           {g.label && groupHeader(g.label, padX, spaceAction(g))}
-          {g.rows.map(row)}
+          {g.rows.map((c) => (
+            <Fragment key={c.channelId}>
+              {row(c)}
+              {openThreads[c.channelId] === true &&
+                topics(c).map((t) => (
+                  <div
+                    key={t.threadId}
+                    className="flex flex-wrap items-center gap-x-[10px] gap-y-2 border-t border-(--border-subtle) bg-(--surface-sunken)"
+                    style={{ padding: `8px ${padX + 18}px` }}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-(--text-secondary)">
+                      {t.name ?? `Topic ${t.threadId}`}
+                    </span>
+                    <ThreadTriggerToggle
+                      channel={c}
+                      thread={t}
+                      platform={platform}
+                      disabled={!integrationId}
+                      onChange={(trigger) => setThreadTrigger(integrationId!, c.channelId, t.threadId, trigger)}
+                    />
+                  </div>
+                ))}
+            </Fragment>
+          ))}
         </Fragment>
       ))}
       {dmRows.length > 0 && groupHeader(translate('directMessages'), padX)}

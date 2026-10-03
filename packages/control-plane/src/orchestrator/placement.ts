@@ -35,7 +35,8 @@ import type {
   IntegrationSessionMode,
   IntegrationCoreEnvelope,
   McpServerSpec,
-  MemoryConnectionSpec
+  MemoryConnectionSpec,
+  ThreadRef
 } from '@agentconnect.md/protocol'
 import { SessionRetentionSetting } from '@agentconnect.md/protocol'
 import type {
@@ -55,7 +56,8 @@ import type {
   BotRecord,
   BotRepo,
   IntegrationChannelRepo,
-  IntegrationChannelRecord
+  IntegrationChannelRecord,
+  ChannelTrigger
 } from '../persistence/ports.js'
 import type { CpPlatformRegistry } from '../platforms/provider.js'
 import {
@@ -254,7 +256,34 @@ function gatedBindRules(channels: IntegrationChannelRecord[]): IntegrationBindRu
     else if (c.trigger === 'any') out.push({ channel: c.channelId, match: { kind: 'auto' } })
     else out.push({ channel: c.channelId, match: { kind: 'mention' } })
   }
+  // A trigger that wants a THREAD branches AFTER the fallthrough: suppressing the channel's
+  // own grant in an overridden thread would close a conversation the operator just opened.
+  for (const t of threadRows(channels)) {
+    if (t.trigger === 'off') continue
+    out.push({ channel: t.channel, thread: t.thread, match: { kind: t.trigger === 'any' ? 'auto' : 'mention' } })
+  }
   return out
+}
+
+/** Every topic that carries a trigger, as the override fence — `off` included: a row an
+ *  operator set is an override whatever value it holds, and stating it uniformly keeps one
+ *  rule instead of four conditionals. An `off` topic is muted by its own ref and needs no
+ *  suppression, so listing it costs nothing. */
+function overriddenThreadRefs(channels: IntegrationChannelRecord[]): ThreadRef[] {
+  return channels.flatMap((c) =>
+    (c.threads ?? []).filter((t) => t.trigger !== null).map((t) => ({ channel: c.channelId, thread: t.threadId }))
+  )
+}
+
+/** Every topic that carries a trigger, flattened to the coordinate the fence folds read. */
+function threadRows(
+  channels: IntegrationChannelRecord[]
+): { channel: string; thread: string; trigger: ChannelTrigger }[] {
+  return channels.flatMap((c) =>
+    (c.threads ?? []).flatMap((t) =>
+      t.trigger === null ? [] : [{ channel: c.channelId, thread: t.threadId, trigger: t.trigger }]
+    )
+  )
 }
 
 /**
@@ -275,11 +304,26 @@ function mutedChannelIds(channels: IntegrationChannelRecord[], gated: boolean): 
   return channels.filter((c) => c.trigger === 'off').map((c) => c.channelId)
 }
 
+/** The Off TOPICS — the thread half of the mute fence, its own field so an older daemon
+ *  strips it rather than rejecting the frame (see `mutedThreads` on the wire schema). */
+function mutedThreadRefs(channels: IntegrationChannelRecord[]): ThreadRef[] {
+  return threadRows(channels)
+    .filter((t) => t.trigger === 'off')
+    .map((t) => ({ channel: t.channel, thread: t.thread }))
+}
+
 /** The explicit-address conversations of an integration — its `affinityDenied` fence.
  *  Unlike `mutedChannels` this is NOT skipped when gated: Off is expressed by the missing
  *  scoped rule, but affinity denial is orthogonal to the grant. */
-function affinityDeniedChannelIds(channels: IntegrationChannelRecord[]): string[] {
+function affinityDeniedRefs(channels: IntegrationChannelRecord[]): string[] {
   return channels.filter((c) => c.trigger === 'mention_topic').map((c) => c.channelId)
+}
+
+/** The `mention_topic` topics of an integration — the thread half of `affinityDenied`. */
+function affinityDeniedThreadRefs(channels: IntegrationChannelRecord[]): ThreadRef[] {
+  return threadRows(channels)
+    .filter((t) => t.trigger === 'mention_topic')
+    .map((t) => ({ channel: t.channel, thread: t.thread }))
 }
 
 /**
@@ -329,8 +373,11 @@ export async function integrationToSpec(
       .map((c) => ({ channel: c.channelId, match: { kind: 'auto' as const } })),
     ...enabledDecisionGates(channels).map((g) => ({ channel: g.channel, match: { kind: 'decision' as const } }))
   ]
-  const bindRules = gated ? gatedBindRules(channels) : [...DEFAULT_BIND_RULES, ...channelRules]
-  const affinityDenied = affinityDeniedChannelIds(channels)
+  const topicRules: IntegrationBindRule[] = threadRows(channels)
+    .filter((t) => t.trigger === 'any')
+    .map((t) => ({ channel: t.channel, thread: t.thread, match: { kind: 'auto' as const } }))
+  const bindRules = gated ? gatedBindRules(channels) : [...DEFAULT_BIND_RULES, ...channelRules, ...topicRules]
+  const affinityDenied = affinityDeniedRefs(channels)
   // A held By decision conversation is muted so the unscoped mention default can never answer it as Any.
   const mutedChannels = [...mutedChannelIds(channels, gated), ...(gated ? [] : heldDecisionChannels(channels))]
   // §6.4 final shape: envelope + opaque config. The daemon takes the routing
@@ -347,11 +394,26 @@ export async function integrationToSpec(
     bindRules,
     mutedChannels,
     affinityDenied,
+    overriddenThreads: overriddenThreadRefs(channels),
+    ...threadHalves(channels),
     gated,
     sessionModes: sessionModeEntries(channels),
     decisions: decisionBundleOf(channels)
   }
   return projectSpec(platforms, i, bot, core, secret)
+}
+
+/** The two optional thread halves, present only when a topic sets one — so a group with no
+ *  topics emits the byte-identical envelope it did before topics existed. */
+function threadHalves(
+  channels: IntegrationChannelRecord[]
+): Pick<IntegrationCoreEnvelope, 'mutedThreads' | 'affinityDeniedThreads'> {
+  const muted = mutedThreadRefs(channels)
+  const denied = affinityDeniedThreadRefs(channels)
+  return {
+    ...(muted.length > 0 ? { mutedThreads: muted } : {}),
+    ...(denied.length > 0 ? { affinityDeniedThreads: denied } : {})
+  }
 }
 
 /**
@@ -389,7 +451,9 @@ export async function httpIntegrationToSpec(
     // Non-gated ships no bind rules by design: the relay route is the candidate and the daemon holds by the bundle.
     bindRules: gated ? gatedBindRules(channels) : [],
     mutedChannels: [...mutedChannelIds(channels, gated), ...(gated ? [] : heldDecisionChannels(channels))],
-    affinityDenied: affinityDeniedChannelIds(channels),
+    affinityDenied: affinityDeniedRefs(channels),
+    overriddenThreads: overriddenThreadRefs(channels),
+    ...threadHalves(channels),
     gated,
     sessionModes: sessionModeEntries(channels),
     decisions: decisionBundleOf(channels)

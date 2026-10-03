@@ -169,6 +169,11 @@ export type IntegrationGoogleChatConfig = z.infer<typeof IntegrationGoogleChatCo
  * `createNew` is today's behavior — a message opens a session, a thread reply continues
  * that thread's. `append` joins the conversation's one long-lived session instead.
  */
+export const ScopeRef = z.union([z.string(), z.object({ channel: z.string(), thread: z.string() })])
+export type ScopeRef = z.infer<typeof ScopeRef>
+export const ThreadRef = z.object({ channel: z.string(), thread: z.string() })
+export type ThreadRef = z.infer<typeof ThreadRef>
+
 export const ChannelSessionMode = z.enum(['createNew', 'append'])
 export type ChannelSessionMode = z.infer<typeof ChannelSessionMode>
 
@@ -186,6 +191,9 @@ export const IntegrationCoreEnvelope = z.object({
   mutedChannels: z.array(z.string()).default([]),
   // Conversations denying implicit continuity; only explicit addresses activate them.
   affinityDenied: z.array(z.string()).default([]),
+  overriddenThreads: z.array(ThreadRef).default([]),
+  mutedThreads: z.array(ThreadRef).optional(),
+  affinityDeniedThreads: z.array(ThreadRef).optional(),
   gated: z.boolean().default(false),
   sessionModes: z.array(IntegrationSessionMode).default([]),
   // Emitted unconditionally and stripped by readers that predate it; an empty bundle clears every binding.
@@ -309,6 +317,14 @@ export function conversationLink(key: unknown, url: unknown): { key?: string; ur
  * display metadata: the conversation's short platform handle and the page it opens on the
  * platform, carried as their own fields so no reader ever parses them back out of `name`.
  */
+/** A thread of a conversation that can carry its own trigger (a Telegram forum topic).
+ *  `name` absent = not yet resolved; nothing clears a name, so it is never null. */
+export const IntegrationChannelThread = z.object({
+  id: z.string(),
+  name: z.string().optional()
+})
+export type IntegrationChannelThread = z.infer<typeof IntegrationChannelThread>
+
 export const IntegrationChannel = z.object({
   id: z.string(), // platform conversation id (Slack "C…" / DM "D…")
   name: z.string().optional(), // "#deploys" without the hash (or DM counterpart); absent if lookup failed
@@ -328,7 +344,10 @@ export const IntegrationChannel = z.object({
   // The 1:1 DM counterpart's platform member id (§14.8) — control metadata of the same
   // class as `name`, and the only thing that identifies WHO a private agent's DM row is
   // with. Absent on channels and group DMs, whose membership is a room, not a person.
-  dmUserId: z.string().optional()
+  dmUserId: z.string().optional(),
+  // The conversation's own configurable threads, where the platform has them. Absent
+  // everywhere else, and absent until the daemon has learned one.
+  threads: z.array(IntegrationChannelThread).optional()
 })
 export type IntegrationChannel = z.infer<typeof IntegrationChannel>
 

@@ -592,6 +592,41 @@ describe('Daemon.refreshObservedChannels (Telegram/Discord/Feishu discovery)', (
     await daemon.stop()
   })
 
+  it('keeps a learned topic across a refresh — it is not re-learned from session history', async () => {
+    // A topic arrives only from traffic, and `fromSessions` rebuilds the row from a fresh
+    // literal while `retained` spreads the cached one. Without the carry-over a refresh
+    // erased every topic until the next message in the forum re-learned them.
+    const root = root1()
+    const { daemon } = makeStubDaemon(root)
+    await daemon.start()
+
+    const emit = vi.fn()
+    ;(daemon as any).cpClient = { emitIntegrationChannels: emit, stop: vi.fn().mockResolvedValue(undefined) }
+    ;(daemon as any).agents = new Map([
+      ['bot-tg', { id: 'bot-tg', integrations: [{ id: 'tg-int', platform: 'telegram', config: { botToken: 'tg' } }] }]
+    ])
+    vi.spyOn((daemon as any).store, 'observedChannels').mockResolvedValue([{ id: '-100123', name: 'Team Chat' }])
+    const sync = (daemon as any).observedChannelsSync
+
+    await sync.observePlatformChats('telegram', [{ id: '-100123', name: 'Team Chat', isPrivate: false }], ['tg-int'])
+    await sync.observeForumTopic('telegram', { id: '-100123', isPrivate: false, threadId: '7', forumName: 'Deploys' }, [
+      'tg-int'
+    ])
+
+    await sync.refreshObservedChannels()
+
+    expect((daemon as any).channelSnapshots.get('tg-int').channels).toEqual([
+      {
+        id: '-100123',
+        name: 'Team Chat',
+        isPrivate: false,
+        kind: 'channel',
+        threads: [{ id: '7', name: 'Deploys' }]
+      }
+    ])
+    await daemon.stop()
+  })
+
   it('reports observed Discord channels the same way (Discord bots cannot list the channels they engage in)', async () => {
     const root = root1()
     const { daemon } = makeStubDaemon(root)

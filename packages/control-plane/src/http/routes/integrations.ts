@@ -58,9 +58,11 @@ import type { CpConfigRefusal } from '../../platforms/provider.js'
 import { multiAgentUnsupportedMessage } from '../../platforms/sharing.js'
 import {
   UpdateIntegrationChannelBody,
+  UpdateIntegrationChannelThreadBody,
   LeaveIntegrationConversationBody,
   IntegrationDto,
   IntegrationChannelDto,
+  IntegrationChannelThreadDto,
   IntegrationListDto,
   ErrorDto,
   IdParam,
@@ -91,7 +93,8 @@ function toChannelDto(c: IntegrationChannelRecord, view?: DecisionView): Integra
     decisionBinding: c.trigger === 'decision' ? c.decisionBinding : null,
     decision: c.trigger === 'decision' ? decisionChannelView(c, view?.names ?? new Map(), view?.readiness?.(c)) : null,
     sessionMode: c.sessionMode,
-    agentId: c.agentId
+    agentId: c.agentId,
+    threads: c.threads
   }
 }
 
@@ -1135,6 +1138,55 @@ export function integrationRoutes(deps: HttpDeps) {
         } finally {
           release()
         }
+      }
+    )
+
+    // A topic's own trigger. Simpler than the conversation route above on purpose: a topic
+    // write never moves a conversation's owner, so the shared-bot ownership arm and the
+    // mutation lease have nothing to protect here — and Telegram, the only platform with
+    // topics, is socket-transport, so that arm is unreachable besides.
+    r.patch(
+      '/integrations/:id/channels/:channelId/threads/:threadId',
+      {
+        schema: {
+          tags: [Tag.Integrations],
+          summary: 'Update a topic',
+          description:
+            "Set a Telegram forum topic's trigger, or clear it (null) to inherit the group's, then push the updated routing configuration.",
+          operationId: 'updateIntegrationChannelThread',
+          params: IdParam.extend({ channelId: z.string().min(1), threadId: z.string().min(1) }),
+          body: UpdateIntegrationChannelThreadBody,
+          response: { 200: IntegrationChannelThreadDto, 400: ErrorDto, 403: ErrorDto, 404: ErrorDto }
+        }
+      },
+      async (req, reply) => {
+        if (denyViewerWrite(req, reply)) return
+        const integration = await deps.repos.integration.get(orgIdOf(req), IntegrationId(req.params.id))
+        if (!integration) {
+          return reply.code(404).send({ error: 'Not Found', statusCode: 404, message: 'integration not found' })
+        }
+        // Same derived visibility as the conversation route: 404 hides the integration from
+        // a caller who cannot see its agent, 403 refuses one who can see but not edit it.
+        const agent = await deps.repos.agent.get(orgIdOf(req as never), integration.agentId)
+        if (!agent || !canView(agent, ctxOf(req))) {
+          return reply.code(404).send({ error: 'Not Found', statusCode: 404, message: 'integration not found' })
+        }
+        if (!canEdit(agent, ctxOf(req))) {
+          return reply.code(403).send({ error: 'Forbidden', statusCode: 403, message: 'cannot edit this agent' })
+        }
+        const updated = await deps.repos.integrationChannel.setThreadTrigger(
+          integration.id,
+          req.params.channelId,
+          req.params.threadId,
+          req.body.trigger
+        )
+        if (!updated) return reply.code(404).send({ error: 'Not Found', statusCode: 404, message: 'topic not found' })
+        // Push the change: an HTTP bot's routes hot-update on the relay; a classic bot
+        // re-pushes its recomputed bindRules to the owning daemon.
+        const bot = await deps.repos.bot.get(orgIdOf(req), integration.botId)
+        if (bot?.transport === 'http') await deps.httpBot.syncRoutes(bot.id)
+        else await replicateUpsert(integration, agent)
+        return { threadId: updated.threadId, name: updated.name, trigger: updated.trigger }
       }
     )
 

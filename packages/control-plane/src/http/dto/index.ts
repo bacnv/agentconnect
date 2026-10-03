@@ -956,6 +956,14 @@ export const TelegramBotCheckDto = z.object({
   status: z.enum(['ready', 'privacy_enabled', 'invalid', 'unreachable'])
 })
 
+/** One configurable thread of a conversation — a Telegram forum topic. `trigger: null` =
+ *  inherit the conversation's, which is also what clearing an override returns it to. */
+export const IntegrationChannelThreadDto = z.object({
+  threadId: z.string(),
+  name: z.string().nullable(),
+  trigger: z.enum(['off', 'mention', 'mention_topic', 'any']).nullable()
+})
+
 /** One conversation the integration's bot is in + how it activates there.
  *  `off` = conversation gating (resource-visibility.md §14): the agent does not
  *  activate there — the default for every conversation of a restricted agent.
@@ -1003,7 +1011,10 @@ export const IntegrationChannelDto = z.object({
   sessionMode: z.enum(['createNew', 'append']),
   /** Effective per-conversation owner for a shared bot (§10.1); null before convergence
    *  or when ownership does not apply. */
-  agentId: z.string().nullable()
+  agentId: z.string().nullable(),
+  /** The conversation's configurable topics (a Telegram forum topic), each with its own
+   *  trigger or `null` to inherit this conversation's. Empty where the platform has none. */
+  threads: z.array(IntegrationChannelThreadDto)
 })
 
 /** Console view of an integration — metadata only, NEVER the tokens. */
@@ -1889,6 +1900,12 @@ export const UpdateIntegrationChannelBody = z
     message: "decisionBinding is required with, and only with, trigger 'decision'",
     path: ['decisionBinding']
   })
+
+/** `PATCH /integrations/:id/channels/:channelId/threads/:threadId` — a topic's own trigger.
+ *  `null` clears the override, returning the topic to its group's trigger. */
+export const UpdateIntegrationChannelThreadBody = z.object({
+  trigger: z.enum(['off', 'mention', 'mention_topic', 'any']).nullable()
+})
 
 /**
  * `POST /integrations/:id/leave` — what to withdraw from at the platform.

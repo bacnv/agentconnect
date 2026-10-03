@@ -1456,6 +1456,10 @@
         "optionHint": "<b>{label}</b> — <hint></hint>",
         "respondLocked": "Respond to unavailable",
         "respondLockedHint": "By decision chooses which messages get a reply and which agent answers. Remove the decision to pick a trigger here."
+      },
+      "topics": {
+        "followGroup": "Follow group",
+        "followGroupHint": "Uses the trigger set for {group}."
       }
     },
     "github": {

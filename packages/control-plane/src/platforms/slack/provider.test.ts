@@ -151,7 +151,8 @@ const channel = (
   decisionBinding: null,
   decisionNeedsReview: false,
   decisionDefinition: null,
-  agentId: null
+  agentId: null,
+  threads: []
 })
 
 // §9 adoption: the live spec/assign paths reach this provider THROUGH the
@@ -540,6 +541,7 @@ describe('slack projection equivalence with the live integrationToSpec path (dir
         bindRules,
         mutedChannels: ['C3'],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }
@@ -620,6 +622,7 @@ describe('slack projection equivalence with the live httpIntegrationToSpec path 
         bindRules: [],
         mutedChannels: ['C2'],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }

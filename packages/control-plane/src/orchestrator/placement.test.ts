@@ -108,7 +108,8 @@ const channel = (
   decisionBinding: null,
   decisionNeedsReview: false,
   decisionDefinition: null,
-  agentId: null
+  agentId: null,
+  threads: []
 })
 
 describe('integrationToSpec sessionModes', () => {
@@ -862,3 +863,85 @@ describe('mention_topic → the affinityDenied fence', () => {
     expect(spec?.core.affinityDenied).toEqual(['C1'])
   })
 })
+
+const thread = (threadId: string, trigger: 'off' | 'mention' | 'mention_topic' | 'any' | null) => ({
+  threadId,
+  name: `Topic ${threadId}`,
+  trigger
+})
+
+describe('integrationToSpec thread overrides', () => {
+  it('an integration with no threads emits an empty fence — nothing else changes', async () => {
+    const spec = await specOf(INTEGRATION, SECRET, [channel('C1', 'any')])
+    expect(spec.core?.overriddenThreads).toEqual([])
+    expect(spec.core?.mutedChannels).toEqual([])
+  })
+
+  it('a topic set to mention overrides the group without muting it and without a rule of its own', async () => {
+    const spec = await specOf(INTEGRATION, SECRET, [{ ...channel('C1', 'any'), threads: [thread('7', 'mention')] }])
+    expect(spec.core?.overriddenThreads).toEqual([{ channel: 'C1', thread: '7' }])
+    expect(spec.core?.mutedChannels).toEqual([])
+    // The group's channel-scoped auto rule stays in the list; the fence is what drops it
+    // in thread 7, where the unscoped mention default takes over.
+    expect(spec.core?.bindRules).toEqual([
+      { match: { kind: 'mention' } },
+      { match: { kind: 'dm' } },
+      { channel: 'C1', match: { kind: 'auto' } }
+    ])
+  })
+
+  it('an off topic contributes a thread-shaped mute and an override', async () => {
+    const spec = await specOf(INTEGRATION, SECRET, [{ ...channel('C1', 'mention'), threads: [thread('7', 'off')] }])
+    expect(spec.core?.overriddenThreads).toEqual([{ channel: 'C1', thread: '7' }])
+    expect(spec.core?.mutedThreads).toEqual([{ channel: 'C1', thread: '7' }])
+    expect(spec.core?.mutedChannels).toEqual([])
+  })
+
+  it('an any topic gets a thread-scoped auto rule', async () => {
+    const spec = await specOf(INTEGRATION, SECRET, [{ ...channel('C1', 'mention'), threads: [thread('7', 'any')] }])
+    expect(spec.core?.bindRules).toContainEqual({ channel: 'C1', thread: '7', match: { kind: 'auto' } })
+  })
+
+  it('a mention_topic topic contributes an affinity fence, never a mute', async () => {
+    const spec = await specOf(INTEGRATION, SECRET, [
+      { ...channel('C1', 'any'), threads: [thread('7', 'mention_topic')] }
+    ])
+    expect(spec.core?.affinityDeniedThreads).toEqual([{ channel: 'C1', thread: '7' }])
+    expect(spec.core?.affinityDenied).toEqual([])
+    expect(spec.core?.mutedChannels).toEqual([])
+  })
+
+  it('an off group with an any topic is expressible: the group mutes channel-wide, the topic overrides', async () => {
+    const spec = await specOf(INTEGRATION, SECRET, [{ ...channel('C1', 'off'), threads: [thread('7', 'any')] }])
+    expect(spec.core?.mutedChannels).toEqual(['C1'])
+    expect(spec.core?.overriddenThreads).toEqual([{ channel: 'C1', thread: '7' }])
+    expect(spec.core?.bindRules).toContainEqual({ channel: 'C1', thread: '7', match: { kind: 'auto' } })
+  })
+
+  it('a cleared trigger is indistinguishable from one never set', async () => {
+    const never = await specOf(INTEGRATION, SECRET, [{ ...channel('C1', 'any'), threads: [thread('7', null)] }])
+    const cleared = await specOf(INTEGRATION, SECRET, [channel('C1', 'any')])
+    expect(never.core).toEqual(cleared.core)
+  })
+
+  it('a gated integration gets a thread-scoped grant per enabled topic and none for an off one', async () => {
+    const spec = await specOf(
+      INTEGRATION,
+      SECRET,
+      [
+        {
+          ...channel('C1', 'mention'),
+          threads: [thread('7', 'mention'), thread('8', 'any'), thread('9', 'off')]
+        }
+      ],
+      true
+    )
+    expect(spec.core?.bindRules).toEqual([
+      { channel: 'C1', match: { kind: 'mention' } },
+      { channel: 'C1', thread: '7', match: { kind: 'mention' } },
+      { channel: 'C1', thread: '8', match: { kind: 'auto' } }
+    ])
+    expect(spec.core?.mutedChannels).toEqual([])
+  })
+})
+

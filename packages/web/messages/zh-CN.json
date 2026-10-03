@@ -1456,6 +1456,10 @@
         "optionHint": "<b>{label}</b>——<hint></hint>",
         "respondLocked": "无法设置触发条件",
         "respondLockedHint": "按决策会决定哪些消息得到回复、由哪个 Agent 回答。移除该决策后才能在这里选择触发条件。"
+      },
+      "topics": {
+        "followGroup": "跟随群组",
+        "followGroupHint": "使用为{group}设置的触发方式。"
       }
     },
     "github": {

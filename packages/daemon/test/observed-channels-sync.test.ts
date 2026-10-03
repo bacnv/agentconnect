@@ -24,6 +24,91 @@ function harness() {
 const rows = (snapshots: Map<string, { channels: IntegrationChannel[] }>): IntegrationChannel[] =>
   snapshots.get(INTEGRATION)?.channels ?? []
 
+/** Telegram's variant: the platform gate has to pass, and the display-name store is
+ *  recorded so a topic can be proved never to rename its conversation. */
+function telegramHarness() {
+  const snapshots = new Map<string, { channels: IntegrationChannel[]; authoritative: boolean }>()
+  const reports: { integrationId: string; channels: IntegrationChannel[] }[] = []
+  const names: { id: string; name: string }[] = []
+  const host = {
+    store: () => ({
+      setDisplayName: async (id: string, name: string) => {
+        names.push({ id, name })
+      }
+    }),
+    channelSnapshots: () => snapshots,
+    integrationConfigById: () => ({ id: INTEGRATION, platform: 'telegram' }),
+    cpClient: () => ({
+      emitIntegrationChannels: (s: { integrationId: string; channels: IntegrationChannel[] }) => reports.push(s)
+    }),
+    emitSessionMetadataSnapshotsForDisplayName: async () => {}
+  } as unknown as ObservedChannelsSyncHost
+  return { sync: new ObservedChannelsSync(host), snapshots, reports, names }
+}
+
+describe('observeForumTopic — a thread on an observed conversation', () => {
+  it('adds a topic to the conversation row and re-emits', async () => {
+    const { sync, snapshots } = telegramHarness()
+    await sync.observePlatformChats('telegram', [{ id: '-100', name: 'General', isPrivate: false }], [INTEGRATION])
+    await sync.observeForumTopic('telegram', { id: '-100', isPrivate: false, threadId: '7' }, [INTEGRATION])
+
+    expect(rows(snapshots)[0]?.threads).toEqual([{ id: '7' }])
+  })
+
+  it('reports nothing on a second observation of the same topic', async () => {
+    const { sync, snapshots, reports } = telegramHarness()
+    await sync.observePlatformChats('telegram', [{ id: '-100', name: 'General', isPrivate: false }], [INTEGRATION])
+    await sync.observeForumTopic('telegram', { id: '-100', isPrivate: false, threadId: '7' }, [INTEGRATION])
+
+    const before = reports.length
+    await sync.observeForumTopic('telegram', { id: '-100', isPrivate: false, threadId: '7' }, [INTEGRATION])
+    expect(reports).toHaveLength(before)
+  })
+
+  it('learns a topic name once and never unlearns it from a later nameless sighting', async () => {
+    const { sync, snapshots, reports } = telegramHarness()
+    await sync.observePlatformChats('telegram', [{ id: '-100', name: 'General', isPrivate: false }], [INTEGRATION])
+    await sync.observeForumTopic('telegram', { id: '-100', isPrivate: false, threadId: '7', forumName: 'Deploys' }, [
+      INTEGRATION
+    ])
+
+    // Traffic names no topic, and this runs on every message: the quiet second sighting must
+    // both leave the learned name standing and re-emit nothing.
+    const before = reports.length
+    await sync.observeForumTopic('telegram', { id: '-100', isPrivate: false, threadId: '7' }, [INTEGRATION])
+
+    expect(rows(snapshots)[0]?.threads).toEqual([{ id: '7', name: 'Deploys' }])
+    expect(reports).toHaveLength(before)
+  })
+
+  it('never renames the conversation the topic sits in', async () => {
+    // `setDisplayName` is keyed by platform id and is latest-wins, so naming it after the topic
+    // would rename the GROUP row — and two named topics would flip it between them.
+    const { sync, names } = telegramHarness()
+    await sync.observePlatformChats('telegram', [{ id: '-100', name: 'General', isPrivate: false }], [INTEGRATION])
+    names.length = 0
+    await sync.observeForumTopic('telegram', { id: '-100', isPrivate: false, threadId: '7', forumName: 'Deploys' }, [
+      INTEGRATION
+    ])
+
+    expect(names).toEqual([])
+  })
+
+  it('records a topic whose conversation row was never reported, so a topic cannot be lost', async () => {
+    const { sync, snapshots } = telegramHarness()
+    await sync.observeForumTopic('telegram', { id: '-100', isPrivate: false, threadId: '7' }, [INTEGRATION])
+
+    expect(rows(snapshots)[0]?.threads).toEqual([{ id: '7' }])
+  })
+
+  it('ignores an integration of another platform, and does not add a topic to it', async () => {
+    const { sync, snapshots } = harness()
+    await sync.observeForumTopic('telegram', { id: '-100', isPrivate: false, threadId: '7' }, [INTEGRATION])
+
+    expect(snapshots.size).toBe(0)
+  })
+})
+
 describe('observePlatformChats — the conversation row a platform reports as observed', () => {
   it('carries the chat’s own glyph onto the row, and leaves it off where there is none', async () => {
     const { sync, snapshots, reports } = harness()

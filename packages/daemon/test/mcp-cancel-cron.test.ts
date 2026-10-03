@@ -23,7 +23,14 @@ const ctx: SessionContext = {
     {
       id: 'int-tg',
       platform: 'telegram',
-      core: { mode: 'direct', bindRules: [], mutedChannels: [], affinityDenied: [], gated: false },
+      core: {
+        mode: 'direct',
+        bindRules: [],
+        mutedChannels: [],
+        affinityDenied: [],
+        overriddenThreads: [],
+        gated: false
+      },
       config: { botToken: '123456:ABC' }
     } as never
   ])

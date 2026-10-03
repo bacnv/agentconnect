@@ -2194,6 +2194,17 @@ export interface IntegrationChannelRow {
   sessionMode?: 'createNew' | 'append'
   /** Effective per-conversation owner for a shared bot. */
   agentId?: string | null
+  /** The conversation's own configurable threads (Telegram forum topics), where the platform
+   *  reports them. Absent everywhere else, and absent until the daemon has learned one. */
+  threads?: IntegrationChannelThreadRow[]
+}
+
+/** One thread of a conversation. `trigger: null` = it follows the conversation's own, which
+ *  is also the state clearing an override returns it to. */
+export interface IntegrationChannelThreadRow {
+  threadId: string
+  name: string | null
+  trigger: 'off' | 'mention' | 'mention_topic' | 'any' | null
 }
 
 /** A direct conversation — a DM or a Slack group DM. Neither is a place the bot can be

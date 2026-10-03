@@ -94,6 +94,7 @@ export const IntegrationSchema = z.object({
     bindRules: [],
     mutedChannels: [],
     affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }

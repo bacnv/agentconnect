@@ -101,7 +101,8 @@ const channel = (
   decisionBinding: null,
   decisionNeedsReview: false,
   decisionDefinition: null,
-  agentId: null
+  agentId: null,
+  threads: []
 })
 
 describe('discord provider identity + declarative facets', () => {
@@ -301,6 +302,7 @@ describe('discord projection equivalence with the live integrationToSpec path', 
         bindRules,
         mutedChannels: ['C3'],
         affinityDenied: [],
+        overriddenThreads: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }
