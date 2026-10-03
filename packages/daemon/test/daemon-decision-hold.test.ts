@@ -6,6 +6,10 @@ import { Daemon } from '../src/daemon.js'
 import { transcriptChannelKey } from '../src/store/local-store.js'
 import { fakeSlackAppFactory } from './fakes/slack-app.js'
 import { WAIT } from './wait-support.js'
+import { routeRules } from '@agentconnect.md/activation-policy'
+import type { NormalizedMessage } from '../src/messages/normalized.js'
+import type { Agent, Integration } from '../src/agents/agent-schema.js'
+import { rulesFromAgent } from '../src/router/routing-rule.js'
 
 // By decision hold: a bound conversation whose binding cannot run is recorded and never dispatched, never Any.
 
@@ -175,6 +179,65 @@ describe('By decision hold', () => {
     expect(await admissionsOf(store, channel)).toEqual([])
     expect(dispatch).not.toHaveBeenCalled()
     await daemon.stop()
+  })
+
+  it('admits an overridden topic through the ladder and decision admission, while inherited topics stay held', async () => {
+    const int: Integration = {
+      id: 'int-bot-a',
+      platform: 'telegram',
+      core: {
+        bindRules: [
+          { channel: 'C1', match: { kind: 'decision' } },
+          { channel: 'C2', match: { kind: 'decision' } },
+          { channel: 'C1', thread: '7', match: { kind: 'auto' } }
+        ],
+        overriddenThreads: [{ channel: 'C1', thread: '7' }],
+        sessionModes: [{ channel: 'C1', mode: 'append' }],
+        decisions: {
+          bindings: ['C1', 'C2'].map((channel) => ({
+            channel,
+            consumer: gate,
+            enabled: false,
+            disabledReason: 'needs_review'
+          })),
+          definitions: [definition]
+        }
+      },
+      config: { botToken: '123456:ABC' }
+    } as Integration
+    const rules = rulesFromAgent({ id: 'bot-a', integrations: [int] } as Agent, {})
+    const daemon = Object.create(Daemon.prototype) as any
+    daemon.agents = new Map([['bot-a', { integrations: [int] }]])
+    daemon.store = { resolveAppendCoordinate: async () => 'append:conversation' }
+    daemon.integrationConfigById = () => int
+    daemon.decisionHoldLog = vi.fn()
+    daemon.decisionGate = { candidate: vi.fn() }
+
+    for (const [channel, thread, expected] of [
+      ['C1', '7', 'not_bound'],
+      ['C1', '8', 'held'],
+      ['C1', undefined, 'held'],
+      ['C2', '7', 'held']
+    ] as const) {
+      const msg = human({ platform: 'telegram', channel, thread }) as NormalizedMessage
+      msg.sessionThread = await daemon.sessionCoordinateFor('bot-a', int.id, msg)
+      if (channel === 'C1') expect(msg.sessionThread).toBe('append:conversation')
+      expect(msg.thread).toBe(thread)
+      const routed = routeRules(msg, rules, () => null)
+      if (channel === 'C1') expect(routed?.via).toBe(thread === '7' ? 'auto' : 'decision')
+      expect(
+        await daemon.decisionCandidate(int.id, 'bot-a', msg, {
+          delivery: { origin: 'direct', primary: true, via: 'implicit', integrationId: int.id, msg }
+        })
+      ).toEqual({ kind: expected })
+      expect(
+        await daemon.decisionCandidate(int.id, 'bot-a', msg, {
+          relayDecisionId: DECISION,
+          delivery: { origin: 'relay', rd: {} as never, msg }
+        })
+      ).toEqual({ kind: expected })
+    }
+    expect(daemon.decisionGate.candidate).not.toHaveBeenCalled()
   })
 
   it('holds a decision rule whose bundle entry is missing, in every channel it covers', async () => {

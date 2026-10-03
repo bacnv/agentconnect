@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RdMsgHook } from '@agentconnect.md/protocol'
 import { Daemon } from '../src/daemon.js'
 import { GithubReplyCollector } from '../src/github/poster.js'
@@ -6,6 +6,8 @@ import { sessionKey } from '../src/store/local-store.js'
 import { callDaemonTool, daemonMcpBinding } from '../../../evals/games/mcp-client.js'
 import { fakeCpClient, scaffold, scriptedHosts, seedCallPolicy, settle } from './webchat-continuation-fixture.js'
 import { WAIT } from './wait-support.js'
+
+afterEach(() => vi.unstubAllEnvs())
 
 const PARENT = 'parent'
 const CHILD = 'child'
@@ -54,6 +56,8 @@ describe('code-host parent replies', () => {
   it.each(['gitlab', 'gitea'] as const)(
     'refuses publication to a changed instance when replaying a legacy %s hook target',
     async (provider) => {
+      // This fixture tests code-host publication, not a gateway-configured daemon boot.
+      vi.stubEnv('ANTHROPIC_BASE_URL', undefined)
       const root = scaffold([PARENT])
       const seed = new Daemon({ root, hostFactory: scriptedHosts({ [PARENT]: () => 'unused' }).factory })
       await seed.start()
