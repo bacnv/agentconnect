@@ -261,7 +261,7 @@ function ThreadTriggerToggle({
           label: t('trigger.mentionTopic'),
           hint: t('trigger.mentionTopicHint', { room: rowLabel(channel) })
         }
-      ] satisfies TriggerOption<IntegrationChannelRow['trigger']>[]
+      ] satisfies TriggerOption<Exclude<IntegrationChannelRow['trigger'], 'decision'>>[]
     ).filter((o) => allowed.includes(o.value))
   ]
   const name = thread.name ?? `Topic ${thread.threadId}`
