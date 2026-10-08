@@ -30,8 +30,19 @@ const MARK_FILE = 'mark'
 const MARK = /^[a-f0-9]{32}$/
 // The shim ends its runtimes on SIGTERM with a 5 s deadline of its own; this waits for that before escalating.
 const STOP_TIMEOUT_MS = 10_000
-/** What the runtimes inherit from this machine: where its tools and locale are, never its credentials. */
-const INHERITED_ENV = ['PATH', 'LANG', 'LC_ALL', 'TZ'] as const
+/** What the runtimes inherit from this machine: its tools, its locale, and the egress proxy SRT reads off this process — never a credential. */
+const INHERITED_ENV = [
+  'PATH',
+  'LANG',
+  'LC_ALL',
+  'TZ',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy'
+] as const
 const HELPER_KEYS: ReadonlyArray<Exclude<keyof ShimPaths, 'tunnels'>> = [
   'gitCredentialHelper',
   'ghTokenEntry',
