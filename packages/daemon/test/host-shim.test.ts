@@ -320,6 +320,29 @@ describe('host strategy shim launcher', () => {
     })
   })
 
+  it('passes the egress proxy through to the shim, so the SRT provider can tunnel instead of dialling direct', () => {
+    const env = hostShimEnv({
+      machineEnv: {
+        PATH: '/usr/bin',
+        HTTP_PROXY: 'http://corp:8080',
+        HTTPS_PROXY: 'http://corp:8080',
+        NO_PROXY: 'localhost,127.0.0.1',
+        AC_CLAUDE_API_KEY: 'k'
+      },
+      home: '/d/sessions/s/home',
+      socketPath: '/d/hs/x/shim.sock',
+      runtimeRoot: '/d/hs/x',
+      workspaceRoot: '/d/sessions/s',
+      helperRoot: '/d/dist',
+      mark: 'm'
+    })
+    expect(env.HTTP_PROXY).toBe('http://corp:8080')
+    expect(env.HTTPS_PROXY).toBe('http://corp:8080')
+    expect(env.NO_PROXY).toBe('localhost,127.0.0.1')
+    // Still a closed list: an unrelated credential never rides along.
+    expect(env.AC_CLAUDE_API_KEY).toBeUndefined()
+  })
+
   it('makes stdin the lifeline in place of the extra descriptor under a boundary that passes stdio alone', () => {
     const env = hostShimEnv({
       machineEnv: { PATH: '/usr/bin' },
