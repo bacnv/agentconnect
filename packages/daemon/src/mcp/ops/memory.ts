@@ -8,7 +8,8 @@ import {
   optionalString,
   parseArgs,
   requiredString,
-  requiredStringAllowEmpty
+  requiredStringAllowEmpty,
+  unexpectedKeys
 } from './args.js'
 import type { MemoryProvider, MemoryScope } from '../../memory/provider.js'
 import { MEMBERS_DIRECTORY_FILE } from '../../memory/members-directory.js'
@@ -46,14 +47,6 @@ export const MEMBERS_FILE_ENTRY_TOOLS_ONLY = `${MEMBERS_DIRECTORY_FILE} in share
 export interface MemoryToolCall {
   mode: 'read' | 'write'
   layer?: MemoryLayerChoice
-}
-
-/** A stray key here is almost always the sibling file tool's argument; refuse it by name (#1921). */
-const unexpectedKeys: { error: z.core.$ZodErrorMap } = {
-  error: (issue) =>
-    issue.code === 'unrecognized_keys'
-      ? `unexpected argument${issue.keys.length > 1 ? 's' : ''}: ${issue.keys.join(', ')}`
-      : undefined
 }
 
 const layerArg = z
