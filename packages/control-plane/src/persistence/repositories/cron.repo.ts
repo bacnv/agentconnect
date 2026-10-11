@@ -40,6 +40,7 @@ function toRecord(c: CronWithUsers): CronRecord {
     timezone: c.timezone,
     targetPlatform: c.targetPlatform as Platform,
     targetChannel: c.targetChannel,
+    targetThread: c.targetThread,
     targetIntegrationId: c.targetIntegrationId ? IntegrationId(c.targetIntegrationId) : null,
     trigger: c.trigger,
     enabled: c.enabled,
@@ -70,6 +71,7 @@ export class PgCronRepo implements CronRepo {
       timezone: input.timezone,
       targetPlatform: toDbPlatform(input.targetPlatform ?? 'slack'),
       targetChannel: input.targetChannel ?? null,
+      targetThread: input.targetThread ?? null,
       targetIntegrationId: input.targetIntegrationId ?? null,
       trigger: input.trigger,
       enabled: input.enabled ?? true

@@ -48,6 +48,7 @@ function toDto(c: CronRecord, ctx: ViewCtx): CronDtoT {
     // to fire into); narrow the wider protocol platform to the DTO's target enum.
     targetPlatform: toDbPlatform(c.targetPlatform),
     targetChannel: c.targetChannel,
+    targetThread: c.targetThread,
     targetIntegrationId: c.targetIntegrationId,
     trigger: c.trigger,
     enabled: c.enabled,
@@ -189,6 +190,13 @@ export function cronRoutes(deps: HttpDeps) {
             timezone: req.body.timezone ?? existing?.timezone ?? 'UTC',
             targetPlatform,
             ...(req.body.targetChannel ? { targetChannel: req.body.targetChannel } : {}),
+            // A container belongs to ONE channel: an edit that leaves the channel alone keeps the
+            // stored id, but re-pointing the channel drops it. An explicit body value wins.
+            ...(req.body.targetThread
+              ? { targetThread: req.body.targetThread }
+              : existing?.targetThread && req.body.targetChannel === existing.targetChannel
+                ? { targetThread: existing.targetThread }
+                : {}),
             ...(targetIntegrationId ? { targetIntegrationId } : {}),
             trigger: req.body.trigger,
             enabled: req.body.enabled,
