@@ -170,7 +170,6 @@ export function resolveAgentIntegration(
     botUserId: botUserIds[int.id] ?? staticBotUserId ?? '',
     platform: int.platform,
     mutedChannels,
-    affinityDenied,
     affinityDenied
   }
 }
@@ -190,7 +189,6 @@ export function rulesFromAgent(agent: Agent, botUserIds: Record<string, string>)
         scope: { ...(br.channel ? { channel: br.channel } : {}), ...(br.thread ? { thread: br.thread } : {}) },
         match: br.match,
         mutedChannels,
-        affinityDenied,
         affinityDenied,
         source: 'config',
         platform: int.platform

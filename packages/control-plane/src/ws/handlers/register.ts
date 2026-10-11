@@ -27,6 +27,8 @@ import {
   AGENT_MEMORY_HISTORY_READ_V1_FEATURE,
   AGENT_MEMORY_STORE_OPERATION_ID_V1_FEATURE,
   AGENT_MEMORY_STORE_V1_FEATURE,
+  AGENT_CRON_AUTHOR_FEATURE,
+  AGENT_CRON_CANCEL_FEATURE,
   APPROVAL_DM_ROUTE_V1_FEATURE,
   ASSISTANT_RESPONSIBLE_ROUTE_V1_FEATURE,
   CHAT_ACTOR_V1_FEATURE,
@@ -185,6 +187,8 @@ export const handleRegister: Handler = async (frame, conn, deps) => {
       SESSION_EXECUTORS_V1_FEATURE,
       // assistant-mode.md §5.14: this CP takes follow-up watches and sends their wakes.
       ...(deps.followUpWatch ? [FOLLOW_UP_WATCH_FEATURE] : []),
+      AGENT_CRON_AUTHOR_FEATURE,
+      AGENT_CRON_CANCEL_FEATURE,
       // A daemon socket reports explicit credential-lifecycle events only to a CP that applies them.
       ...(deps.socketBotRevocation ? [INTEGRATION_REVOKED_FEATURE] : [])
     ]

@@ -94,6 +94,7 @@ describe('cronUpdateInput', () => {
     timezone: 'America/New_York',
     targetPlatform: 'slack',
     targetChannel: null,
+    targetThread: null,
     targetIntegrationId: null,
     trigger: 'daily report',
     enabled: true,

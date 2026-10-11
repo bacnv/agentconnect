@@ -20,6 +20,7 @@ import {
   PgAgentSecretStore,
   PgAssignmentRepo,
   PgCronRepo,
+  PgAuditRepo,
   PgHookRepo,
   PgSecretLeaseRepo,
   PgIntegrationRepo,
@@ -182,6 +183,7 @@ export function buildWsHarness(prisma: PrismaClient, opts: HarnessOpts = {}): Ws
     agentSecret: new PgAgentSecretStore(prisma, cipher),
     assignment: new PgAssignmentRepo(prisma),
     cron: new PgCronRepo(prisma),
+    audit: new PgAuditRepo(prisma),
     hook: new PgHookRepo(prisma),
     lease: new PgSecretLeaseRepo(prisma),
     integration: new PgIntegrationRepo(prisma),
@@ -271,6 +273,7 @@ export function buildWsHarness(prisma: PrismaClient, opts: HarnessOpts = {}): Ws
     opts.gitlabBaseUrl,
     repos.hook
   )
+  const agentDelivery = new AgentDelivery({ control: sender, specs, placement: placementResolver })
   const orchestrator = new Placement(
     repos.daemon,
     repos.agent,
@@ -388,7 +391,7 @@ export function buildWsHarness(prisma: PrismaClient, opts: HarnessOpts = {}): Ws
             integrationChannel: repos.integrationChannel,
             session: repos.session
           },
-          agentDelivery: new AgentDelivery({ control: sender, specs, placement: placementResolver }),
+          agentDelivery,
           httpBot,
           platforms: PLATFORMS
         },
@@ -399,6 +402,8 @@ export function buildWsHarness(prisma: PrismaClient, opts: HarnessOpts = {}): Ws
     collabRoutes,
     dutyLease,
     cron: repos.cron,
+    audit: repos.audit,
+    agentDelivery,
     hook: repos.hook,
     externalMemoryConnection: repos.externalMemoryConnection,
     organizationKnowledge: repos.organizationKnowledge,
