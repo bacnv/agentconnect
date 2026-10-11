@@ -334,7 +334,7 @@ describe('integration/channels EVT → integration_channel convergence', () => {
         decisionBinding: null,
         decision: null,
         agentId: null,
-        externalReason: null
+        externalReason: null,
         threads: []
       },
       {
@@ -353,7 +353,7 @@ describe('integration/channels EVT → integration_channel convergence', () => {
         decisionBinding: null,
         decision: null,
         agentId: null,
-        externalReason: null
+        externalReason: null,
         threads: []
       }
     ])
@@ -1977,7 +1977,7 @@ describe('PATCH /integrations/:id/channels/:channelId', () => {
       decisionBinding: null,
       decision: null,
       agentId: null,
-      externalReason: null
+      externalReason: null,
       threads: []
     })
 

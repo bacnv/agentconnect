@@ -1183,7 +1183,7 @@ export class CommandHandlers {
         (candidate) => candidate.platform === platform && srcIntegrationIds.includes(candidate.id)
       )
       if (!integration || conversationSessionMode(integration, channel) !== 'append') continue
-      if (!conversationAdmitted(integrationRouting(integration), channel)) continue
+      if (!conversationAdmitted(integrationRouting(integration), channel, undefined)) continue
       // Read-only first: a conversation nobody has spoken in has nothing to rotate, and its first message mints anyway.
       const current = await this.host.store().currentAppendCoordinate(agentId, channel, transportScope)
       if (current === undefined) continue
