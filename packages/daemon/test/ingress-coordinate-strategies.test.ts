@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { threadKeyForPost } from '../src/platforms/thread-keys.js'
+import { threadContainerFor, threadKeyForPost } from '../src/platforms/thread-keys.js'
 import { isMalformedPlatformTurn } from '../src/platforms/malformed-turn.js'
 import { threadPromotionFor, type ThreadPromotionHost } from '../src/platforms/thread-promotion.js'
 import { discordThreadPromotion, discordThreadName } from '../src/platforms/discord/thread-promotion.js'
@@ -27,6 +27,30 @@ describe('outbound thread keys (threadKeyForPost)', () => {
   it('defaults an unregistered platform to the core rule (own ts)', () => {
     expect(threadKeyForPost('some-future-platform', 'c', 't1')).toBe('t1')
     expect(threadKeyForPost('constructor', 'c', 't1', true)).toBe('t1')
+  })
+})
+
+describe('thread containers (threadContainerFor)', () => {
+  // A container is a place a conversation LIVES, not a sub-conversation inside one. The
+  // distinction decides whether a fire posts inside it or opens a new thread beside it.
+  it('recognizes a Telegram forum topic as a container', () => {
+    expect(threadContainerFor('telegram', '42')).toBe('42')
+    // The `tg:` reply-root form is a sub-conversation, not a place.
+    expect(threadContainerFor('telegram', 'tg:42')).toBeUndefined()
+    // A DM has no container at all.
+    expect(threadContainerFor('telegram', 'dm')).toBeUndefined()
+  })
+
+  it('reports no container on every platform whose thread is a sub-conversation', () => {
+    // Slack thread_ts: a new fire must open its OWN thread, never revive the one that asked.
+    expect(threadContainerFor('slack', '1700.1')).toBeUndefined()
+    expect(threadContainerFor('discord', '999')).toBeUndefined()
+    expect(threadContainerFor('feishu', 'om_9')).toBeUndefined()
+    expect(threadContainerFor('some-future-platform', 't1')).toBeUndefined()
+  })
+
+  it('reports no container when the conversation has no thread at all', () => {
+    expect(threadContainerFor('telegram', undefined)).toBeUndefined()
   })
 })
 

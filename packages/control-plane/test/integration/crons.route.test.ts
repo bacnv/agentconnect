@@ -161,6 +161,45 @@ describe('cron replication CP→daemon (REST → cron/upsert·remove)', () => {
     expect((await prisma.cronDef.findUnique({ where: { id: cronId } }))?.timezone).toBe('America/New_York')
   })
 
+  // A container (a Telegram forum topic) belongs to ONE channel, so an edit that keeps the channel must
+  // keep it too — a console edit that dropped it would move every future fire to General. Re-pointing the
+  // channel is the one case that invalidates it: topic `6` means nothing in a different chat.
+  it('an edit that omits targetThread keeps it while the channel holds, and drops it when the channel is re-pointed', async () => {
+    await seedDaemon(prisma, DAEMON)
+    const agentId = randomUUID()
+    await seedAgent(prisma, agentId, { daemonId: DAEMON })
+    const cronId = randomUUID()
+    const { app, spy } = withSpy()
+
+    const created = await app.app.inject({
+      method: 'PUT',
+      url: `${ORG}/crons/${cronId}`,
+      payload: body(agentId, { targetChannel: 'C123', targetThread: '6' })
+    })
+    expect(created.statusCode).toBe(200)
+    expect((created.json() as { targetThread: string | null }).targetThread).toBe('6')
+    expect(spy.upserts[0]!.u.target).toEqual({ platform: 'slack', channel: 'C123', thread: '6' })
+
+    const edited = await app.app.inject({
+      method: 'PUT',
+      url: `${ORG}/crons/${cronId}`,
+      payload: body(agentId, { targetThread: undefined, trigger: 'a different prompt' })
+    })
+    expect(edited.statusCode).toBe(200)
+    expect((edited.json() as { targetThread: string | null }).targetThread).toBe('6')
+    expect(spy.upserts[1]!.u.target).toEqual({ platform: 'slack', channel: 'C123', thread: '6' })
+
+    const moved = await app.app.inject({
+      method: 'PUT',
+      url: `${ORG}/crons/${cronId}`,
+      payload: body(agentId, { targetChannel: 'C999', targetThread: undefined })
+    })
+    expect(moved.statusCode).toBe(200)
+    expect((moved.json() as { targetThread: string | null }).targetThread).toBeNull()
+    expect(spy.upserts[2]!.u.target).toEqual({ platform: 'slack', channel: 'C999' })
+    expect((await prisma.cronDef.findUnique({ where: { id: cronId } }))?.targetThread).toBeNull()
+  })
+
   it('stamps creator + createdAt on create; an edit never reassigns the creator but advances last-modified', async () => {
     const agentId = randomUUID()
     await seedAgent(prisma, agentId)

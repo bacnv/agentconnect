@@ -69,11 +69,14 @@ const advertised: ToolDescriptor[] = [
   ...toolsForIntegrations([slackInt, telegramInt, qqInt], {
     organizationKnowledge: true,
     decisions: true,
+    cronAuthor: true,
+    cronCancel: true,
     currentPlatform: 'slack'
   }),
   ...toolsForIntegrations([slackInt, telegramInt], {
     organizationKnowledge: true,
     decisions: true,
+    cronAuthor: true,
     currentPlatform: 'telegram'
   }),
   ...externalMemoryTools(ALL_CAPABILITIES),
@@ -121,6 +124,27 @@ describe('advertised tool schemas agree with their zod validators', () => {
     const root = byName.get('sendMessage')!.inputSchema as ObjectSchemaView
     const branch = root.oneOf!.find((candidate) => candidate.required?.includes(target))!
     expect(validatorFields(schema)).toEqual(fields(branch))
+  })
+})
+
+describe('the scheduleCron feature gate', () => {
+  it('advertises scheduleCron only when the CP serves it', () => {
+    const on = toolsForIntegrations([slackInt, telegramInt], { cronAuthor: true }).map((t) => t.name)
+    const off = toolsForIntegrations([slackInt, telegramInt]).map((t) => t.name)
+    // `cron/author` is frame-fatal to a CP that does not know it, so the tool must not exist
+    // there — an agent that called it would report a broken feature instead of an absent one.
+    expect(on).toContain('scheduleCron')
+    expect(off).not.toContain('scheduleCron')
+  })
+
+  it('advertises cancelCron on its own feature, never on authoring’s', () => {
+    // `cron/cancel` is a separate REQ, so a CP can serve authoring without it — a daemon that
+    // offered cancelCron there would send a frame an older CP cannot decode.
+    const both = toolsForIntegrations([slackInt], { cronAuthor: true, cronCancel: true }).map((t) => t.name)
+    const authorOnly = toolsForIntegrations([slackInt], { cronAuthor: true }).map((t) => t.name)
+    expect(both).toContain('cancelCron')
+    expect(authorOnly).not.toContain('cancelCron')
+    expect(authorOnly).toContain('scheduleCron')
   })
 })
 
