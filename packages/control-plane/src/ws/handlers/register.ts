@@ -36,6 +36,8 @@ import {
   AGENT_MEMORY_HISTORY_READ_V1_FEATURE,
   AGENT_MEMORY_STORE_OPERATION_ID_V1_FEATURE,
   AGENT_MEMORY_STORE_V1_FEATURE,
+  AGENT_CRON_AUTHOR_FEATURE,
+  AGENT_CRON_CANCEL_FEATURE,
   APPROVAL_DM_ROUTE_V1_FEATURE,
   WEBCHAT_MCP_GRANT_RENEW_FEATURE,
   ASSISTANT_RESPONSIBLE_ROUTE_V1_FEATURE,
@@ -219,6 +221,8 @@ export const handleRegister: Handler = async (frame, conn, deps) => {
       ...(deps.capabilityRequests ? [CAPABILITY_REQUESTS_V2_FEATURE] : []),
       // …and takes live secret asks, shipping `AgentSpec.liveSecrets` (capability-requests.md §4.9.2).
       ...(deps.capabilityRequests ? [CAPABILITY_REQUESTS_V3_FEATURE] : []),
+      AGENT_CRON_AUTHOR_FEATURE,
+      AGENT_CRON_CANCEL_FEATURE,
       // A daemon socket reports explicit credential-lifecycle events only to a CP that applies them.
       ...(deps.socketBotRevocation ? [INTEGRATION_REVOKED_FEATURE] : []),
       // A daemon socket reports the tenant its traffic named only to a CP that records it.
