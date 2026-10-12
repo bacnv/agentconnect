@@ -690,6 +690,64 @@ describe('Daemon (no Slack, injected ACP host)', () => {
     await daemon.stop()
   })
 
+  it('keeps an operator-picked model when the gateway echoes a combo upstream name', async () => {
+    // A gateway COMBO is a router: asking for `claude-opus-4-8` can be served by `gpt-6.1-sol`, and
+    // the adapter reports the SERVED name in `_claude/model`. With a model picked, that report is the
+    // upstream speaking — letting it through relabels the session with an id nobody chose.
+    const root = scaffold()
+    let reportModel: (model: string) => void = () => {}
+    const fakeHost = {
+      __started: true,
+      start: vi.fn(async () => {}),
+      newSession: vi.fn(async () => 'acp-sess-1'),
+      hasSession: (id: string) => id === 'acp-sess-1',
+      modelOptions: vi.fn(() => ({ current: 'claude-opus-4-8', models: ['claude-opus-4-8', 'gpt-6.1-sol'] })),
+      prompt: vi.fn(async () => {
+        reportModel('gpt-6.1-sol')
+        return { stopReason: 'end_turn', usage: { totalTokens: 100, inputTokens: 80, outputTokens: 20 } }
+      }),
+      cancel: vi.fn(),
+      stop: vi.fn()
+    }
+    const daemon = new Daemon({
+      slackAppFactory: fakeSlackAppFactory(),
+      root,
+      hostFactory: (_agent, onUpdate) => {
+        reportModel = (model) =>
+          onUpdate('acp-sess-1', {
+            sessionUpdate: 'usage_update',
+            used: 160,
+            size: 200_000,
+            _meta: { '_claude/model': model }
+          })
+        return fakeHost as any
+      }
+    })
+    await daemon.start()
+    const agent = (daemon as any).agents.get('bot-a')
+    agent.runtimeOverrides = { ...(agent.runtimeOverrides ?? {}), model: 'claude-opus-4-8' }
+    const emitEventSession = vi.fn()
+    const emitUsageReport = vi.fn()
+    ;(daemon as any).cpClient = { emitEventSession, emitUsageReport, stop: vi.fn() }
+
+    await (daemon as any).dispatch('bot-a', {
+      msgId: 'slack:C1:100.1',
+      traceId: '1',
+      source: 'cron',
+      platform: 'slack',
+      channel: 'C1',
+      thread: '100.1',
+      sender: { id: 'U1', isBot: false },
+      text: 'hi',
+      mentionedBots: [],
+      isDm: false
+    })
+
+    expect(emitEventSession.mock.calls.at(-1)![0]).toMatchObject({ model: 'claude-opus-4-8' })
+    expect(emitUsageReport.mock.calls.at(-1)![0].observedModel).not.toBe('gpt-6.1-sol')
+    await daemon.stop()
+  })
+
   describe('a cold resume of an existing session', () => {
     const turn = (ts: string, text: string) => ({
       msgId: `slack:C1:${ts}`,

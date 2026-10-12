@@ -18378,6 +18378,13 @@ export class Daemon {
     return maskSecretsDeep(payload, maskableSecrets(this.agents.get(agentId)))
   }
 
+  /** The model an operator pinned for this session (in-chat pick, Decision target, agent default); undefined means nobody chose. */
+  private async selectedModelFor(key: string, rec: SessionRecord | undefined): Promise<string | undefined> {
+    const agent = rec?.agentId ? this.sessionAgent(rec.agentId, key) : undefined
+    const override = await this.store.getModelOverride(key)
+    return override ?? pinnedDecisionModel(rec?.decisionModel, agent?.runtime) ?? agent?.runtimeOverrides?.model
+  }
+
   /** Keep native usage and the runtime's concrete model together, including notifications after turn completion. */
   private async recordRuntimeUsageSnapshot(
     key: string,
@@ -18395,9 +18402,13 @@ export class Daemon {
     if (!model || model === 'default' || model === '<synthetic>') return
     const observed = await this.store.getObservedTurn(key)
     if (!observed?.runtime) return
+    const rec = await this.store.getSession(key)
+    // A gateway COMBO echoes its UPSTREAM's name, so a report contradicting an EXPLICIT pick is the
+    // upstream speaking, not the session; with nothing picked, the report is the only evidence there is.
+    const picked = await this.selectedModelFor(key, rec)
+    if (picked !== undefined && picked !== model) return
     if (observed.model !== model) {
       await this.store.setObservedTurn(key, observed.runtime, model)
-      const rec = await this.store.getSession(key)
       if (rec) await this.reportSessionStatus(rec)
     }
     return model
