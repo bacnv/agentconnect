@@ -1272,7 +1272,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(conversation.url !== undefined ? { url: conversation.url } : {}),
         ...(conversation.isCodeSession !== undefined ? { isCodeSession: conversation.isCodeSession } : {}),
         ...(conversation.dmUserId ? { dmUserId: conversation.dmUserId } : {})
-      }
+      },
+      include: CHANNEL_INCLUDE
     })
     if (conversation.externalReason !== undefined)
       await rememberExternalPlaces(this.db, integrationId, [conversation.id])
@@ -1330,7 +1331,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(opts?.kind ? { kind: opts.kind } : {}),
         ...(opts?.defaultTrigger ? { trigger: opts.defaultTrigger } : {})
       },
-      update: { agentId }
+      update: { agentId },
+      include: CHANNEL_INCLUDE
     })
     return (await channelRecords(this.db, [row]))[0]!
   }
