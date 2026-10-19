@@ -386,16 +386,16 @@ describe("a member's coordinator conversation in webchat (auto-session-mode.md Â
     })
     const channel = transcriptChannelKey(CONV)
     const root = await send('first')
-    expect(await d.store.threadForPlatformMessage(channel, root.postId)).toBe(root.postId)
+    expect((await d.store.threadForPlatformMessage(channel, root.postId))?.thread).toBe(root.postId)
     const reply = await send('second', OWNER, CONV, undefined, root.postId)
-    expect(await d.store.threadForPlatformMessage(channel, reply.postId)).toBe(root.postId)
+    expect((await d.store.threadForPlatformMessage(channel, reply.postId))?.thread).toBe(root.postId)
     // The coordinator is told where the reply sits.
     expect(prompts[1]).toContain(`thread="msg-${root.postId}"`)
     expect(prompts[0]).not.toContain('thread="')
     for (const thread of [reply.postId, '66666666-6666-4666-8666-666666666666']) {
       const refused = await turn('third', OWNER, CONV, undefined, thread)
       expect(refused.ack).toMatchObject({ accepted: false, reason: 'unknown_thread' })
-      expect(await d.store.threadForPlatformMessage(channel, refused.postId)).toBeUndefined()
+      expect((await d.store.threadForPlatformMessage(channel, refused.postId))?.thread).toBeUndefined()
     }
     expect(prompts).toHaveLength(2)
     await daemon.stop()
@@ -404,7 +404,7 @@ describe("a member's coordinator conversation in webchat (auto-session-mode.md Â
   it('refuses a thread in an ordinary conversation and on a continued session that holds none', async () => {
     const { daemon, d, turn, send } = await boot(async (_id, _text, say) => say('ok'))
     const root = await send('hello', 'user-2')
-    expect(await d.store.threadForPlatformMessage(transcriptChannelKey(CONV), root.postId)).toBe(`webchat:${CONV}`)
+    expect((await d.store.threadForPlatformMessage(transcriptChannelKey(CONV), root.postId))?.thread).toBe(`webchat:${CONV}`)
     expect((await turn('again', 'user-2', CONV, undefined, root.postId)).ack).toMatchObject({
       accepted: false,
       reason: 'unknown_thread'
@@ -715,7 +715,7 @@ describe("a member's coordinator conversation in webchat (auto-session-mode.md Â
     const onTask = await send('add a test', MEMBER, PAGE, task)
     expect(onTask.streamed).toBe('task answer 3')
     expect(taskPrompts[2]).toContain('add a test')
-    expect(await d.store.threadForPlatformMessage(channel, onTask.postId)).toBe(first.postId)
+    expect((await d.store.threadForPlatformMessage(channel, onTask.postId))?.thread).toBe(first.postId)
     const inFirst = await d.store.transcriptPage(channel, first.postId, null, 50, AGENT)
     expect(inFirst.rows.map((row: { text: string }) => row.text)).toEqual(
       expect.arrayContaining(['add a test', 'task answer 3'])
@@ -729,13 +729,13 @@ describe("a member's coordinator conversation in webchat (auto-session-mode.md Â
     // Another thread the task holds takes the reply there, on the same session.
     const inSecond = await send('and 503', MEMBER, PAGE, task, second.postId)
     expect(inSecond.streamed).toBe('task answer 4')
-    expect(await d.store.threadForPlatformMessage(channel, inSecond.postId)).toBe(second.postId)
+    expect((await d.store.threadForPlatformMessage(channel, inSecond.postId))?.thread).toBe(second.postId)
     expect((await d.store.getSession(taskId)).sessionId).toBe(task)
 
     // A thread no task holds reaches the coordinator, which is the owner's alone; a closed task holds none.
     const refused = await turn('me too', MEMBER, PAGE, task, unowned.postId)
     expect(refused.ack).toMatchObject({ accepted: false, reason: 'unknown_thread' })
-    expect(await d.store.threadForPlatformMessage(channel, refused.postId)).toBeUndefined()
+    expect((await d.store.threadForPlatformMessage(channel, refused.postId))?.thread).toBeUndefined()
     expect(await d.store.assistantSubsessions.closeTask(AGENT, taskId)).toBe(true)
     expect((await turn('still there?', MEMBER, PAGE, task)).ack).toMatchObject({ accepted: false, reason: 'not_found' })
     expect(taskPrompts).toHaveLength(4)

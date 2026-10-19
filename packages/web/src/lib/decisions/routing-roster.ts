@@ -20,7 +20,7 @@ export interface RosterChannel {
   channelId: string
   name: string
   kind: 'channel' | 'im' | 'mpim'
-  trigger: 'off' | 'mention' | 'any' | 'decision'
+  trigger: 'off' | 'mention' | 'mention_topic' | 'any' | 'decision'
   binding: 'gate' | 'shared_bot_routing' | null
   defaultAgentId: string | null
 }

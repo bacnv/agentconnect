@@ -217,8 +217,8 @@ describe('webchat threads at turn preparation', () => {
       thread: root,
       sessionThread: coordinate
     })
-    expect(await store.threadForPlatformMessage(transcriptChannelKey(conversationId), root)).toBe(root)
-    expect(await store.threadForPlatformMessage(transcriptChannelKey(conversationId), reply)).toBe(root)
+    expect((await store.threadForPlatformMessage(transcriptChannelKey(conversationId), root))?.thread).toBe(root)
+    expect((await store.threadForPlatformMessage(transcriptChannelKey(conversationId), reply))?.thread).toBe(root)
   })
 
   it('refuses a thread that names a reply or nothing recorded, and takes a root recorded before threads', async () => {

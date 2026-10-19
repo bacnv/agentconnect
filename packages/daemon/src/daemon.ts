@@ -26730,12 +26730,14 @@ export class Daemon {
     }
   }
 
-  private async recordReplySegment(p: Pending, text: string): Promise<void> {
+  /** Keyed on the segment text for dedup collisions, EXCEPT when the segment went out as a real
+   * message (`ts`): then that id is the row's key, so a reply to the visible message resolves back here. */
+  private async recordReplySegment(p: Pending, text: string, ts?: string): Promise<void> {
     await this.store.appendTranscript({
       channel: p.plan.transcriptChannel,
       thread: p.plan.statusThread,
       admission: { agentId: p.plan.agentId, sessionKey: p.plan.sessionKey },
-      ts: monotonicTs(),
+      ts: ts ?? monotonicTs(),
       sender: p.plan.agentId,
       kind: 'text',
       text
@@ -26857,7 +26859,7 @@ export class Daemon {
   private async applyTelegramAction(p: Pending, action: TelegramAction): Promise<void> {
     await applyTelegramActionExternal(
       {
-        recordReplySegment: (turn, text) => this.recordReplySegment(turn as Pending, text),
+        recordReplySegment: (turn, text, ts) => this.recordReplySegment(turn as Pending, text, ts),
         appendTranscript: async (row) => await this.store.appendTranscript(row)
       },
       p,

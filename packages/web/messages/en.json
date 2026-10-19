@@ -2026,7 +2026,11 @@
         "dmOnHint": "Replies to every message in this conversation.",
         "hint": "Trigger: when the agent responds here",
         "decision": "By decision",
-        "decisionHint": "A saved decision evaluates each message in {room}. The agent replies only for the outcomes you select."
+        "decisionHint": "A saved decision evaluates each message in {room}. The agent replies only for the outcomes you select.",
+        "coordinator": "Decided by the coordinator",
+        "coordinatorHint": "Under Auto every message in {room} reaches the coordinator, which decides what to answer.",
+        "mentionTopic": "mention + reply",
+        "mentionTopicHint": "The agent responds only when mentioned or when someone replies to one of its own messages in {room}."
       },
       "action": {
         "leaveLabel": "Leave {noun}",
@@ -2742,7 +2746,8 @@
       },
       "azureDevOpsLoadError": "Couldn’t load Azure DevOps repositories: {error}",
       "azureDevOpsNotAuthorized": "{agent} isn’t authorized for {repo}. First authorize it on the agent’s Workspace tab or set it as the workspace repository.",
-      "azureDevOpsNoBoundRepository": "No Azure DevOps repository is in use yet. Authorize one on {agent}’s Workspace tab first, then add its trigger here."
+      "azureDevOpsNoBoundRepository": "No Azure DevOps repository is in use yet. Authorize one on {agent}’s Workspace tab first, then add its trigger here.",
+      "whenMentionedOrReply": "When mentioned, or on a reply"
     },
     "api": {
       "title": "API",

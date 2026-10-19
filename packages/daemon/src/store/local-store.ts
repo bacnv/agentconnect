@@ -9046,15 +9046,18 @@ export class LocalStore {
     return undefined
   }
 
-  /** The thread a recorded platform message id (`ts`, or a webchat `postId`) was filed under; unfenced because it runs before routing and returns no content. */
-  async threadForPlatformMessage(channel: string, messageId: string): Promise<string | undefined> {
+  /** The thread a platform message id (`ts`, or a webchat `postId`) was filed under, AND who wrote it — the author is what makes a reply an ADDRESS, not mere continuity. Unfenced: runs before routing, returns coordinates never content. */
+  async threadForPlatformMessage(
+    channel: string,
+    messageId: string
+  ): Promise<{ thread: string; sender: string | undefined } | undefined> {
     const row = (await this.db
       .prepare(
-        `SELECT thread FROM transcript WHERE channel = ? AND (ts = ? OR postId = ?) AND kind = 'text'
+        `SELECT thread, sender FROM transcript WHERE channel = ? AND (ts = ? OR postId = ?) AND kind = 'text'
            AND thread IS NOT NULL ORDER BY seq DESC LIMIT 1`
       )
-      .get(channel, messageId, messageId)) as { thread: string } | undefined
-    return row?.thread
+      .get(channel, messageId, messageId)) as { thread: string; sender: string | null } | undefined
+    return row ? { thread: row.thread, sender: row.sender ?? undefined } : undefined
   }
 
   async openSessionAgents(channel: string, thread: string, transportScope?: string | null): Promise<string[]> {

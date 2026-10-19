@@ -87,6 +87,7 @@ describe('the linear transcript and card semantics', () => {
     expect(channelListSemantics('linear').triggers).toEqual(['off', 'mention', 'decision'])
     // By decision gates each team's owner; a Linear bot has no router.
     expect(channelListSemantics('linear').sharedDecision).toBe('conversation')
+    expect(channelListSemantics('linear').triggers).not.toContain('mention_topic')
   })
 
   it('warns before a team’s default leaves a private agent', () => {
@@ -134,8 +135,8 @@ describe('the linear transcript and card semantics', () => {
     // Both are capabilities core reads; neither may become "the platform is Linear". Google Chat, DingTalk and WeCom narrow their room triggers.
     for (const m of platformRegistry.all()) {
       if (m.platformId === 'linear') continue
-      expect(m.channelList?.roster, m.platformId).not.toBe('derived')
-      if (!['googlechat', 'dingtalk', 'wecom'].includes(m.platformId))
+      expect(m.channelList?.roster, m.platformId).toBeUndefined()
+      if (!['googlechat', 'dingtalk', 'wecom', 'telegram'].includes(m.platformId))
         expect(m.channelList?.triggers, m.platformId).toBeUndefined()
       expect(m.channelList?.ownerChangeWarning, m.platformId).toBeUndefined()
       expect(m.channelList?.gatedNote, m.platformId).toBeUndefined()

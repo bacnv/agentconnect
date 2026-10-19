@@ -50,6 +50,7 @@ const tools = toolsForIntegrations([
       mode: 'direct',
       bindRules: [],
       mutedChannels: [],
+      affinityDenied: [],
       gated: false,
       sessionModes: [],
       decisions: { bindings: [], definitions: [] }

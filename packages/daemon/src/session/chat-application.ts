@@ -174,7 +174,8 @@ export class ChatSessionApplication {
 
   // A root is recorded in its own thread, or in the conversation's literal one before threads.
   private async isRoot(conversationId: string, postId: string): Promise<boolean> {
-    const recorded = await this.host.store().threadForPlatformMessage(transcriptChannelKey(conversationId), postId)
+    const recorded = (await this.host.store().threadForPlatformMessage(transcriptChannelKey(conversationId), postId))
+      ?.thread
     return recorded === postId || recorded === `webchat:${conversationId}`
   }
 
