@@ -65,7 +65,9 @@ function message(fields: Partial<NormalizedMessage>): NormalizedMessage {
 
 describe('canonicalizeDingTalkThread', () => {
   const host = (threads: Record<string, string>) => ({
-    threadForMessage: vi.fn(async (_channel: string, id: string) => threads[id])
+    threadForMessage: vi.fn(async (_channel: string, id: string) =>
+      threads[id] === undefined ? undefined : { thread: threads[id]!, sender: undefined }
+    )
   })
 
   it('keys a DM as one session, a new mention as a session rooted at itself, and leaves other platforms alone', async () => {

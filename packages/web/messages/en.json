@@ -1704,7 +1704,9 @@
         "decision": "By decision",
         "decisionHint": "A saved decision judges each message in {room}; the agent answers only for the answers you pick.",
         "coordinator": "Decided by the coordinator",
-        "coordinatorHint": "Under Auto every message in {room} reaches the coordinator, which decides what to answer."
+        "coordinatorHint": "Under Auto every message in {room} reaches the coordinator, which decides what to answer.",
+        "mentionTopic": "mention + reply",
+        "mentionTopicHint": "The agent responds only when mentioned or when someone replies to one of its own messages in {room}."
       },
       "action": {
         "leaveLabel": "Leave {noun}",
@@ -2295,7 +2297,8 @@
         "ahpDescription": "Standard AHP v1 sessions and chat actions for compatible agent clients.",
         "ahpOff": "Disabled",
         "ahpPilot": "Pilot"
-      }
+      },
+      "whenMentionedOrReply": "When mentioned, or on a reply"
     },
     "api": {
       "title": "API",

@@ -236,6 +236,9 @@ export const IntegrationCoreEnvelope = z.object({
   mode: z.enum(['direct', 'shared']).default('direct'),
   bindRules: z.array(IntegrationBindRule).default([]),
   mutedChannels: z.array(z.string()).default([]),
+  // Muted conversations nobody decided (resource-visibility.md §14.9): an addressed message gets the §14.3 notice; absent is none.
+  // Conversations denying implicit continuity; only explicit addresses activate them.
+  affinityDenied: z.array(z.string()).default([]),
   gated: z.boolean().default(false),
   sessionModes: z.array(IntegrationSessionMode).default([]),
   // Conversations the platform detected as external (assistant-mode.md §5.3); every other enabled one is internal.

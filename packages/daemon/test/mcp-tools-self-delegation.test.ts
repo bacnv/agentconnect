@@ -14,6 +14,7 @@ const slackInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }

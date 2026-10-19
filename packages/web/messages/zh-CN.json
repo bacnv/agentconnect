@@ -1704,7 +1704,9 @@
         "decision": "按决策",
         "decisionHint": "已保存的决策会评估{room}中的每条消息；Agent 仅在结果符合你选择的答案时回复。",
         "coordinator": "由协调会话决定",
-        "coordinatorHint": "自动模式下，{room}中的每条消息都会交给协调会话，由它决定回复哪些。"
+        "coordinatorHint": "自动模式下，{room}中的每条消息都会交给协调会话，由它决定回复哪些。",
+        "mentionTopic": "提及 + 回复",
+        "mentionTopicHint": "智能体仅在被提及或有人在{room}回复它自己的消息时响应。"
       },
       "action": {
         "leaveLabel": "离开{noun}",
@@ -2295,7 +2297,8 @@
         "ahpDescription": "通过标准 AHP v1 会话和聊天动作连接兼容的 Agent 客户端。",
         "ahpOff": "未启用",
         "ahpPilot": "试点"
-      }
+      },
+      "whenMentionedOrReply": "被提及或收到回复时"
     },
     "api": {
       "title": "API",
