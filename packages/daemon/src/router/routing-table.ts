@@ -20,6 +20,7 @@
  * exists to keep the daemon-side import path and to document the boundary.
  */
 export {
+  affinityAdmits,
   automaticAgents,
   conversationAdmitsAgent,
   conversationPeers,

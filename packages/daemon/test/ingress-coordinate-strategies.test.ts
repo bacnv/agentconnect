@@ -34,7 +34,10 @@ describe('outbound thread keys (threadKeyForPost)', () => {
 
   it('lands a DingTalk send and the reply to it in the same session', async () => {
     // The inbound side of the two DingTalk keys above: a DM reply resolves to `dm`, a quote of the group post to its recorded key.
-    const host = { threadForMessage: async (_channel: string, id: string) => (id === 'pqk-1' ? 'pqk-1' : undefined) }
+    const host = {
+      threadForMessage: async (_channel: string, id: string) =>
+        id === 'pqk-1' ? { thread: 'pqk-1', sender: undefined } : undefined
+    }
     const dm = { platform: 'dingtalk', isDm: true, msgId: 'dingtalk:cid-dm:m1' } as NormalizedMessage
     await canonicalizeDingTalkThread(host as never, dm, 'dm:user-0001')
     expect(dm.thread).toBe(threadKeyForPost('dingtalk', 'dm:user-0001', 'pqk-1', true))

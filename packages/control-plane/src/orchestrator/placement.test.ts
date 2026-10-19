@@ -106,7 +106,7 @@ const specOf = async (
 
 const channel = (
   channelId: string,
-  trigger: 'off' | 'mention' | 'any',
+  trigger: 'off' | 'mention' | 'mention_topic' | 'any',
   kind: 'channel' | 'im' | 'mpim' = 'channel',
   sessionMode: IntegrationChannelRecord['sessionMode'] = 'createNew'
 ): IntegrationChannelRecord => ({
@@ -1140,5 +1140,55 @@ describe('cronToUpsert asker (assistant-mode.md §5.5)', () => {
   it('carries the display name the anchor shows in place of the prompt, and none for an unnamed row', () => {
     expect(cronToUpsert(cron({ name: 'weekly-deploy-report' }))?.name).toBe('weekly-deploy-report')
     expect(cronToUpsert(cron({}))).not.toHaveProperty('name')
+  })
+})
+
+describe('mention_topic → the affinityDenied fence', () => {
+  it('fences the conversation and adds no rule of its own', async () => {
+    const spec = await specOf(INTEGRATION, SECRET, [channel('C1', 'mention_topic')])
+    // The unscoped mention default already covers the mention half.
+    expect(spec.core.bindRules).toEqual([{ match: { kind: 'mention' } }, { match: { kind: 'dm' } }])
+    expect(spec.core.affinityDenied).toEqual(['C1'])
+    // Not Off: the conversation stays admitted, so control commands still resolve.
+    expect(spec.core.mutedChannels).toEqual([])
+  })
+
+  it('adds no auto rule, so nothing can deliver unaddressed traffic', async () => {
+    const spec = await specOf(INTEGRATION, SECRET, [channel('C1', 'mention_topic'), channel('C2', 'any')])
+    expect(spec.core.bindRules).toEqual([
+      { match: { kind: 'mention' } },
+      { match: { kind: 'dm' } },
+      { channel: 'C2', match: { kind: 'auto' } }
+    ])
+    expect(spec.core.affinityDenied).toEqual(['C1'])
+  })
+
+  it('gated: still grants the scoped mention rule, and still fences', async () => {
+    // Gating expresses Off as the MISSING scoped rule; the fence is about addressing,
+    // so it applies either way.
+    const spec = await specOf(INTEGRATION, SECRET, [channel('C1', 'mention_topic')], RESTRICTED)
+    expect(spec.core.bindRules).toEqual([{ channel: 'C1', match: { kind: 'mention' } }])
+    expect(spec.core.affinityDenied).toEqual(['C1'])
+    expect(spec.core.mutedChannels).toEqual([])
+  })
+
+  it('leaves an integration with no mention_topic conversation unaffected', async () => {
+    // The wire default is what keeps an old CP/daemon pair behaving as before.
+    const spec = await specOf(INTEGRATION, SECRET, [channel('C1', 'mention'), channel('C2', 'any')])
+    expect(spec.core.affinityDenied).toEqual([])
+  })
+
+  it('reaches the shared-mode envelope too', async () => {
+    // `bot({ transport: 'http' })` — the shared-mode projector withholds the spec for a
+    // socket bot, and `specOf` asserts non-null, so the plain `bot()` would fail here.
+    const spec = await httpIntegrationToSpec(
+      PLATFORMS,
+      NO_SESSION_SYNC,
+      INTEGRATION,
+      bot({ transport: 'http' }),
+      SECRET,
+      [channel('C1', 'mention_topic')]
+    )
+    expect(spec?.core.affinityDenied).toEqual(['C1'])
   })
 })
