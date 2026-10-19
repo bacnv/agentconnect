@@ -1158,7 +1158,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(conversation.key !== undefined ? { key: conversation.key } : {}),
         ...(conversation.url !== undefined ? { url: conversation.url } : {}),
         ...(conversation.dmUserId ? { dmUserId: conversation.dmUserId } : {})
-      }
+      },
+      include: CHANNEL_INCLUDE
     })
     return (await channelRecords(this.db, [row]))[0]!
   }
@@ -1214,7 +1215,8 @@ export class PgIntegrationChannelRepo implements IntegrationChannelRepo {
         ...(opts?.kind ? { kind: opts.kind } : {}),
         ...(opts?.defaultTrigger ? { trigger: opts.defaultTrigger } : {})
       },
-      update: { agentId }
+      update: { agentId },
+      include: CHANNEL_INCLUDE
     })
     return (await channelRecords(this.db, [row]))[0]!
   }
