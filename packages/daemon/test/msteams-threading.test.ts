@@ -61,7 +61,9 @@ const personal = { id: PERSONAL, conversationType: 'personal' }
 
 describe('canonicalizeMsTeamsThread', () => {
   const host = (threads: Record<string, string>) => ({
-    threadForMessage: vi.fn(async (_channel: string, id: string) => threads[id])
+    threadForMessage: vi.fn(async (_channel: string, id: string) =>
+      threads[id] === undefined ? undefined : { thread: threads[id]!, sender: undefined }
+    )
   })
 
   it('keys a 1:1 chat as one session, a new group message as a session rooted at itself, and leaves a channel thread as it came', async () => {

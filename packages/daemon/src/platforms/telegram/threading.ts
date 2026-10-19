@@ -36,6 +36,9 @@ export function telegramMessageId(msg: NormalizedMessage): string {
  * lookup. The non-topic keys are deliberately NON-numeric so posting never mistakes
  * them for a forum `message_thread_id` (see TelegramConnection.postMessage). No-op for
  * other platforms or when the thread is already set.
+ *
+ * A reply ALSO resolves its author onto `msg.replyToAuthor`, which costs one transcript
+ * lookup in a forum topic where it previously cost none.
  */
 export async function canonicalizeTelegramThread(
   host: ThreadingHost,
@@ -43,6 +46,17 @@ export async function canonicalizeTelegramThread(
   transcriptChannel: string
 ): Promise<void> {
   if (msg.platform !== 'telegram' || msg.thread !== undefined) return
+  if (msg.isDm) {
+    // Ahead of the lookup: a DM is one continuous session and its rows carry the binary
+    // Off/On control, never this trigger, so the reply author is never consulted.
+    msg.thread = 'dm'
+    return
+  }
+  // ONE lookup answers both questions — the replied-to message's session and its author
+  // (the row already carries `sender`). A forum topic needs only the second and the
+  // non-topic reply path needs both, so the lookup sits ahead of the branch.
+  const reply = msg.replyTo !== undefined ? await host.threadForMessage(transcriptChannel, msg.replyTo) : undefined
+  if (reply?.sender !== undefined) msg.replyToAuthor = reply.sender
   // §6.5 dual-shape reader: prefer the generic coordinates; the named per-platform
   // fields stop being emitted once the fleet reads the generic ones.
   const topicId = msg.topicId
@@ -55,15 +69,11 @@ export async function canonicalizeTelegramThread(
     msg.thread = `tg:${threadRoot}`
     return
   }
-  if (msg.isDm) {
-    msg.thread = 'dm'
-    return
-  }
   if (msg.replyTo) {
     // The row this looks up may be filed under a SESSION coordinate rather than a platform
     // thread (channel-session-mode.md §6.2), and `thread` here is the DELIVERY coordinate —
     // adopting it would make the reply target, and everything reported to the CP, synthetic.
-    const recorded = await host.threadForMessage(transcriptChannel, msg.replyTo)
+    const recorded = reply?.thread
     msg.thread = recorded !== undefined && !isAppendCoordinate(recorded) ? recorded : `tg:${msg.replyTo}`
     return
   }

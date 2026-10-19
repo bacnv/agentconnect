@@ -36,7 +36,7 @@ export async function canonicalizeDingTalkThread(
   }
   if (msg.replyTo) {
     // An append coordinate is a session key, not a delivery thread, so it is never adopted (channel-session-mode.md §6.2).
-    const recorded = await host.threadForMessage(transcriptChannel, msg.replyTo)
+    const recorded = (await host.threadForMessage(transcriptChannel, msg.replyTo))?.thread
     if (recorded !== undefined && !isAppendCoordinate(recorded)) {
       msg.thread = recorded
       return
