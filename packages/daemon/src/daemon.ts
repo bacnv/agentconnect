@@ -10581,6 +10581,8 @@ export class Daemon {
     })
     let tools = toolsForIntegrations(agent.integrations, {
       organizationKnowledge: this.cpClient?.supportsServerFeature?.(ORGANIZATION_KNOWLEDGE_FEATURE) === true,
+      cronAuthor: this.cpClient?.supportsServerFeature?.(AGENT_CRON_AUTHOR_FEATURE) === true,
+      cronCancel: this.cpClient?.supportsServerFeature?.(AGENT_CRON_CANCEL_FEATURE) === true,
       decisions:
         !!agent.decisionIds?.length && this.cpClient?.supportsServerFeature?.(DECISION_TOOLS_V1_FEATURE) === true,
       currentPlatform: platform,
