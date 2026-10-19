@@ -26,6 +26,7 @@ const slackInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -39,6 +40,7 @@ const telegramInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -52,6 +54,7 @@ const qqInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -65,6 +68,7 @@ const dingTalkInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }

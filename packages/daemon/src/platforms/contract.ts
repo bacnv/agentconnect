@@ -505,9 +505,13 @@ export interface Welcome {
   links: { title: string; url: string }[]
 }
 
-/** The host lookup a thread strategy places a reply with: the thread a recorded message id was filed under. */
+/** The thread a recorded message id was filed under, plus who wrote it: reply continuity needs the
+ *  thread, an address fence needs the author. */
 export interface ThreadingHost {
-  threadForMessage(transcriptChannel: string, messageId: string): Promise<string | undefined>
+  threadForMessage(
+    transcriptChannel: string,
+    messageId: string
+  ): Promise<{ thread: string; sender: string | undefined } | undefined>
 }
 
 /** One platform's daemon module: the per-platform (not per-connection) members core looks up by platform id. */
