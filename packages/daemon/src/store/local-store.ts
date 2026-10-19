@@ -8013,15 +8013,32 @@ export class LocalStore {
     return undefined
   }
 
-  /** The thread a recorded platform message id (`ts`) was filed under; unfenced because it runs before routing and returns no content. */
-  async threadForPlatformMessage(channel: string, messageId: string): Promise<string | undefined> {
+  /**
+   * The session thread a Telegram message belongs to AND who wrote it, recovered from
+   * the transcript (every conversational `text` row carries its platform message id in
+   * `ts` and its author in `sender`; Telegram message ids are unique per chat). Backs
+   * reply-based session continuity: a human reply to a bot message
+   * (`reply_to_message.message_id`) resolves to the session that bot message was posted
+   * in. The author is what makes a reply an ADDRESS rather than mere continuity — an
+   * agent id means the human answered the agent. Undefined when the id was never
+   * recorded as text (e.g. a reply to transient chrome, or an unknown message).
+   *
+   * The one transcript read with no org fence, because it runs BEFORE routing picks an
+   * agent. It is safe unfenced: `channel` is the physical-bot-scoped transcript key, one
+   * integration owns that bot, one org owns that integration — and it returns a thread id
+   * and an author id, never content.
+   */
+  async threadForPlatformMessage(
+    channel: string,
+    messageId: string
+  ): Promise<{ thread: string; sender: string | undefined } | undefined> {
     const row = (await this.db
       .prepare(
-        `SELECT thread FROM transcript WHERE channel = ? AND ts = ? AND kind = 'text'
+        `SELECT thread, sender FROM transcript WHERE channel = ? AND ts = ? AND kind = 'text'
            AND thread IS NOT NULL ORDER BY seq DESC LIMIT 1`
       )
-      .get(channel, messageId)) as { thread: string } | undefined
-    return row?.thread
+      .get(channel, messageId)) as { thread: string; sender: string | null } | undefined
+    return row ? { thread: row.thread, sender: row.sender ?? undefined } : undefined
   }
 
   async openSessionAgents(channel: string, thread: string, transportScope?: string | null): Promise<string[]> {

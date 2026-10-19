@@ -19,6 +19,7 @@ const spec: IntegrationSpec = {
     mode: 'direct',
     bindRules: [{ match: { kind: 'mention' } }, { channel: 'C1', match: { kind: 'decision' } }],
     mutedChannels: ['C9'],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: {
