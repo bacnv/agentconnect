@@ -294,6 +294,13 @@ function pendingChannelIds(channels: IntegrationChannelRecord[], gated: boolean)
   return channels.filter(pendingConversation).map((c) => c.channelId)
 }
 
+/** The explicit-address conversations of an integration — its `affinityDenied` fence.
+ *  Unlike `mutedChannels` this is NOT skipped when gated: Off is expressed by the missing
+ *  scoped rule, but affinity denial is orthogonal to the grant. */
+function affinityDeniedChannelIds(channels: IntegrationChannelRecord[]): string[] {
+  return channels.filter((c) => c.trigger === 'mention_topic').map((c) => c.channelId)
+}
+
 /** Per-conversation session modes (channel-session-mode.md §4): sparse, but complete where `appendKinds` forces one session per place, so the daemon's append default for an unseen place never overrides a known row. */
 function sessionModeEntries(
   channels: IntegrationChannelRecord[],
@@ -353,6 +360,7 @@ export async function integrationToSpec(
     ...enabledDecisionGates(channels).map((g) => ({ channel: g.channel, match: { kind: 'decision' as const } }))
   ]
   const bindRules = gated ? gatedBindRules(channels) : [...DEFAULT_BIND_RULES, ...channelRules]
+  const affinityDenied = affinityDeniedChannelIds(channels)
   // A held By decision conversation is muted so the unscoped mention default can never answer it as Any.
   const mutedChannels = [...mutedChannelIds(channels, gated), ...(gated ? [] : heldDecisionChannels(channels))]
   // §6.4 final shape: envelope + opaque config. The daemon takes the routing
@@ -370,6 +378,7 @@ export async function integrationToSpec(
     bindRules,
     mutedChannels,
     ...(pendingChannels.length > 0 ? { pendingChannels } : {}),
+    affinityDenied,
     gated,
     sessionModes: sessionModeEntries(channels, forcedAppendKinds(i, owner)),
     externalChannels: externalChannelIds(channels),
@@ -404,6 +413,7 @@ export async function httpIntegrationToSpec(
     bindRules: gated ? gatedBindRules(channels) : [],
     mutedChannels: [...mutedChannelIds(channels, gated), ...(gated ? [] : heldDecisionChannels(channels))],
     ...(pendingChannels.length > 0 ? { pendingChannels } : {}),
+    affinityDenied: affinityDeniedChannelIds(channels),
     gated,
     sessionModes: sessionModeEntries(channels, forcedAppendKinds(i, owner)),
     externalChannels: externalChannelIds(channels),

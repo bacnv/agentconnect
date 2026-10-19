@@ -91,6 +91,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
         staticBotUserId: selfId,
         bindRules,
         mutedChannels: ['C9'],
+        affinityDenied: [],
         gated: true
       })
       // The envelope read and the self-id strategy are separable: core owns one,
@@ -101,6 +102,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
         mutedChannels: ['C9'],
         // An older control plane sends no pending list, which reads as none (resource-visibility.md §14.9).
         pendingChannels: [],
+        affinityDenied: [],
         gated: true,
         sessionModes: [],
         externalChannels: [],
@@ -122,6 +124,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
         mode: 'direct',
         bindRules: [],
         mutedChannels: [],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }
@@ -138,6 +141,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
         mode: 'direct',
         bindRules: [],
         mutedChannels: [],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }
@@ -152,6 +156,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
         mode: 'direct',
         bindRules: [],
         mutedChannels: [],
+        affinityDenied: [],
         gated: false,
         sessionModes: [],
         decisions: { bindings: [], definitions: [] }
@@ -171,6 +176,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
           mode: 'direct',
           bindRules: [],
           mutedChannels: [],
+          affinityDenied: [],
           gated: false,
           sessionModes: [],
           decisions: { bindings: [], definitions: [] }
@@ -196,6 +202,7 @@ describe('integrationRouting (§6.4 core-envelope read)', () => {
       staticBotUserId: undefined,
       bindRules: [],
       mutedChannels: [],
+      affinityDenied: [],
       gated: false
     })
     expect(integrationCore(int).mode).toBe('direct')
@@ -334,6 +341,7 @@ describe('resolveAgentIntegration', () => {
             mode: 'direct',
             bindRules: [],
             mutedChannels: [],
+            affinityDenied: [],
             gated: false,
             sessionModes: [],
             decisions: { bindings: [], definitions: [] }
@@ -346,14 +354,16 @@ describe('resolveAgentIntegration', () => {
       integrationId: 'int1',
       botUserId: 'B1',
       platform: 'slack',
-      mutedChannels: []
+      mutedChannels: [],
+      affinityDenied: []
     })
     // falls back to the static botUserId when the map has no entry
     expect(resolveAgentIntegration(a, {})).toEqual({
       integrationId: 'int1',
       botUserId: 'STATIC',
       platform: 'slack',
-      mutedChannels: []
+      mutedChannels: [],
+      affinityDenied: []
     })
   })
 
@@ -370,6 +380,7 @@ describe('resolveAgentIntegration', () => {
             mode: 'direct',
             bindRules: [],
             mutedChannels: [],
+            affinityDenied: [],
             gated: false,
             sessionModes: [],
             decisions: { bindings: [], definitions: [] }
@@ -383,6 +394,7 @@ describe('resolveAgentIntegration', () => {
             mode: 'direct',
             bindRules: [],
             mutedChannels: [],
+            affinityDenied: [],
             gated: false,
             sessionModes: [],
             decisions: { bindings: [], definitions: [] }
@@ -412,6 +424,7 @@ describe('conversationAdmitted', () => {
   const routing = (over: Partial<Parameters<typeof conversationAdmitted>[0]> = {}) => ({
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     ...over
   })
@@ -435,6 +448,7 @@ describe('conversationAdmitted', () => {
 
   it('lets the mute override an enabling rule — the two fences are independent', () => {
     const r = routing({
+      affinityDenied: [],
       gated: true,
       mutedChannels: ['C1'],
       bindRules: [{ channel: 'C1', match: { kind: 'mention' } }]
@@ -496,5 +510,55 @@ describe('conversationSessionMode for an unlisted conversation', () => {
     expect(conversationKindOf({ platform: 'slack', channel: 'D1', isDm: false })).toBe('im')
     expect(conversationKindOf({ platform: 'slack', channel: 'G1', isDm: false, isGroupDm: true })).toBe('mpim')
     expect(conversationKindOf({ platform: 'slack', channel: 'C1', isDm: false })).toBe('channel')
+  })
+})
+
+describe('affinityDenied (§6.4 core-envelope read, mirroring mutedChannels)', () => {
+  it('carries the fence from the envelope onto every rule of the integration', () => {
+    const a = agent({
+      integrations: [
+        {
+          id: 'int1',
+          platform: 'telegram',
+          core: { bindRules: [{ match: { kind: 'mention' } }], affinityDenied: ['-100'] } as Integration['core'],
+          config: { botToken: 'x' } as any
+        }
+      ]
+    })
+    expect(rulesFromAgent(a, {})[0]!.affinityDenied).toEqual(['-100'])
+  })
+
+  it('reads as no fence when the integration carries none', () => {
+    // A hand-assembled integration bypasses the schema's default, so integrationCore
+    // has to normalize it — the same reason mutedChannels is normalized there.
+    const a = agent({
+      integrations: [
+        {
+          id: 'int1',
+          platform: 'telegram',
+          core: { bindRules: [{ match: { kind: 'mention' } }] } as Integration['core'],
+          config: { botToken: 'x' } as any
+        }
+      ]
+    })
+    expect(rulesFromAgent(a, {})[0]!.affinityDenied).toEqual([])
+  })
+
+  it('resolves it off the agent the same way mutedChannels is resolved', () => {
+    const a = agent({
+      integrations: [
+        {
+          id: 'int1',
+          platform: 'telegram',
+          core: { mode: 'direct', bindRules: [], mutedChannels: ['C9'], affinityDenied: ['C-T'], gated: false },
+          config: { botToken: 'x', botUserId: 'BTG' } as any
+        }
+      ]
+    })
+    expect(resolveAgentIntegration(a, {})).toMatchObject({
+      integrationId: 'int1',
+      mutedChannels: ['C9'],
+      affinityDenied: ['C-T']
+    })
   })
 })

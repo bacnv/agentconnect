@@ -85,6 +85,9 @@ export interface IntegrationCore {
   mutedChannels: string[]
   /** Muted conversations nobody decided (resource-visibility.md §14.9), which keep the §14.3 notice; normalized to []. */
   pendingChannels: string[]
+  /** Conversations that admit only an explicit address. Normalized here for the same
+   *  reason `mutedChannels` is: a hand-assembled integration has no parsed default. */
+  affinityDenied: string[]
   gated: boolean
   /** Conversations whose session mode departs from `createNew` (channel-session-mode.md).
    *  Sparse, and normalized to [] here so a hand-assembled integration reads as all-default. */
@@ -168,6 +171,7 @@ export function integrationCore(int: Integration): IntegrationCore {
     bindRules: core?.bindRules ?? [],
     mutedChannels: core?.mutedChannels ?? [],
     pendingChannels: core?.pendingChannels ?? [],
+    affinityDenied: core?.affinityDenied ?? [],
     gated: core?.gated ?? false,
     sessionModes: core?.sessionModes ?? [],
     externalChannels: core?.externalChannels ?? [],
