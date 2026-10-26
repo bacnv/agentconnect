@@ -318,7 +318,7 @@ import { StoreRetentionSweeper, resolveStoreRetentionSettings } from './store/re
 import { TranscriptRecorder, type TranscriptEvent } from './session/transcript-recorder.js'
 import { TerminalOutputFolder } from './session/terminal-output-folder.js'
 import { WorkBoundary } from './messages/message-boundary.js'
-import { attachmentMention, buildAttachmentBlocks, sniffImageMimeType } from './session/attachment-block.js'
+import { attachmentMention, buildAttachmentBlocks } from './session/attachment-block.js'
 import { McpControlServer } from './mcp/control-server.js'
 import {
   COMPUTER_COMMAND_LINE_GUIDANCE,
