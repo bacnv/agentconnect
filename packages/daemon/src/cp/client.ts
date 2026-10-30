@@ -509,6 +509,7 @@ export class CpClient {
       autoMerge: deps.autoMerge,
       sandboxKeepAlive: deps.sandboxKeepAlive,
       runtimeProbe: deps.runtimeProbe,
+      reloadGatewayModels: deps.reloadGatewayModels,
       computerPoolOp: deps.computerPoolOp,
       executorPrepare: deps.executorPrepare,
       executorRelease: deps.executorRelease,

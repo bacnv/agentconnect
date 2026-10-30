@@ -377,7 +377,7 @@ export class RuntimeFactsRegistry {
    * spawn a fleet of agent subprocesses. Never throws — probing is best-effort and
    * must not affect the CP connection.
    */
-  async probeAndEmit(includeOrdinary = true): Promise<void> {
+  async probeAndEmit(includeOrdinary = true, force = false): Promise<void> {
     if (this.sweepAbort.signal.aborted) return
     const launch = this.host.launch()
     // --k8s has no runtime to launch on this host: profiles come from the image's
@@ -401,7 +401,7 @@ export class RuntimeFactsRegistry {
     const log = this.host.log()
     const signal = this.sweepAbort.signal
     const catalog = this.host.localProbeCatalog()
-    const fresh = this.lastProbeAtMs > 0 && this.host.clock().now() - this.lastProbeAtMs < PROBE_TTL_MS
+    const fresh = !force && this.lastProbeAtMs > 0 && this.host.clock().now() - this.lastProbeAtMs < PROBE_TTL_MS
     const curatedCandidates = this.host.curatedAdmission().probeCandidates(catalog)
     if (fresh && Object.keys(curatedCandidates).length === 0) {
       // Recent results still valid — just re-assert the snapshot to the (new) connection.
