@@ -8945,8 +8945,9 @@ export class Daemon {
       ...(this.k8s ? [AGENT_WAKE_FEATURE, SESSION_WAKE_FEATURE] : []),
       // Only a cluster daemon places a watcher by session; elsewhere the loop runs in this process either way.
       ...(this.k8s ? [AUTO_MERGE_SESSION_FEATURE] : []),
-      // A managed pool refreshes on its timer alone; only a deployment that opts in takes requests.
-      ...(this.k8sProbeOnDemand ? [RUNTIME_PROBE_FEATURE] : []),
+      // A pool member refreshes on its timer unless it opts in; a host daemon always takes the
+      // console's "reload models", because nothing else refreshes its picker without a restart.
+      ...(!this.k8s || this.k8sProbeOnDemand ? [RUNTIME_PROBE_FEATURE] : []),
       // Only a member with a desktop warm pool creates desktop claims for managed computers.
       ...(this.computerPool ? [COMPUTER_POOL_MEMBER_FEATURE] : []),
       WORKSPACE_GIT_MESSAGE_FEATURE,
@@ -29857,7 +29858,16 @@ export class Daemon {
       k8sPlane: () => this.k8sPlane,
       computerPool: () => this.computerPool,
       // Before the start-up probe is scheduled a request has nothing to add: that probe is about to run.
-      runtimeProbeRequest: () => (this.k8sProbeOnDemand ? () => this.k8sProbeSchedule?.request() : undefined),
+      // A host daemon takes requests too: the console's "reload models" is the only way a combo the
+      // gateway added, or the adapter's own list, reaches a picker without a restart. A pool member
+      // keeps its own scheduler, which is the only thing that can probe a pod it does not run.
+      runtimeProbeRequest: () =>
+        this.k8s
+          ? this.k8sProbeOnDemand
+            ? () => this.k8sProbeSchedule?.request()
+            : undefined
+          : () => void this.runtimeFacts.probeAndEmit(true, true),
+      reloadGatewayModels: () => this.adoptGatewayModelList(),
       workspaceFilesFor: (id, scope) => this.workspaceFilesFor(id, scope),
       transferNetwork: () => this.transferNetwork(),
       workspaceSkillLedger: (id, cwd) =>
