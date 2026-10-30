@@ -522,6 +522,17 @@ describe('CpClient dispatch', () => {
     expect(ack.payload).toEqual({ ok: true })
   })
 
+  it('daemon/runtimes/probe reloads the gateway combo list alongside the runtime probe', async () => {
+    const runtimeProbe = vi.fn()
+    const reloadGatewayModels = vi.fn(async () => undefined)
+    const { t } = await readyClient({ runtimeProbe, reloadGatewayModels })
+    const f = JSON.parse(frame('daemon/runtimes/probe', {}, { epoch: 5 }))
+    t.pushInbound(JSON.stringify(f))
+    expect(runtimeProbe).toHaveBeenCalledOnce()
+    expect(reloadGatewayModels).toHaveBeenCalledOnce()
+    expect(JSON.parse(t.sent[0]!).payload).toEqual({ ok: true })
+  })
+
   it('daemon/runtimes/probe is refused, not ignored, where the deployment takes no requests', async () => {
     const { t } = await readyClient()
     const f = JSON.parse(frame('daemon/runtimes/probe', {}, { epoch: 5 }))

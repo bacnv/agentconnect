@@ -4,7 +4,7 @@ import { useId, useState } from 'react'
 import { useFormatter, useTranslations } from 'next-intl'
 import useSWR from 'swr'
 import type { ProviderKeyProvider, ProviderKeyStatus, SetProviderKeyInput } from '@agentconnect.md/protocol'
-import { deleteProviderKey, fetchProviderKeys, setProviderKey } from '@/lib/api'
+import { deleteProviderKey, fetchProviderKeys, reloadModels, setProviderKey } from '@/lib/api'
 import { useOrgs } from '@/lib/org-context'
 import { consoleKeys } from '@/lib/swr-keys'
 import { LoadingState } from '@/components/marks'
@@ -23,6 +23,9 @@ export default function ProviderKeysSection() {
 // Only providers something consumes are offered; OpenRouter and Cloudflare AI Gateway have no consumer yet.
 const OFFERED_PROVIDERS: ReadonlySet<ProviderKeyProvider> = new Set(['typesafe', 'openai', 'anthropic'])
 
+/** The two providers whose model list a daemon builds a picker from, so "reload" has something to do. */
+const RELOADABLE_PROVIDERS: ReadonlySet<ProviderKeyProvider> = new Set(['openai', 'anthropic'])
+
 type HeaderDraft = { name: string; value: string; saved: boolean; removed: boolean }
 
 function ProviderKeysForOrg({ orgId, isOwner }: { orgId: string; isOwner: boolean }) {
@@ -39,6 +42,9 @@ function ProviderKeysForOrg({ orgId, isOwner }: { orgId: string; isOwner: boolea
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Per-provider reload state: the fan-out is per organization, but each row reports its own press.
+  const [reloading, setReloading] = useState<ProviderKeyProvider | null>(null)
+  const [reloadNote, setReloadNote] = useState<string | null>(null)
   const activeHeaderNames = headers
     .filter((header) => !header.removed)
     .map((header) => header.name.trim().toLowerCase())
@@ -67,6 +73,22 @@ function ProviderKeysForOrg({ orgId, isOwner }: { orgId: string; isOwner: boolea
       setError(t('saveError'))
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Ask the daemons to re-read the models behind this provider, then refresh the capability read
+  // so the picker shows the new list on its next render.
+  const reload = async (provider: ProviderKeyProvider) => {
+    if (reloading) return
+    setReloading(provider)
+    setReloadNote(null)
+    try {
+      const result = await reloadModels(orgId)
+      setReloadNote(result.state === 'probing' ? t('reloadStarted', { count: result.members }) : t('reloadUnsupported'))
+    } catch {
+      setReloadNote(t('reloadError'))
+    } finally {
+      setReloading(null)
     }
   }
 
@@ -136,6 +158,16 @@ function ProviderKeysForOrg({ orgId, isOwner }: { orgId: string; isOwner: boolea
                   )}
                   {isOwner && (
                     <div className="flex gap-2">
+                      {RELOADABLE_PROVIDERS.has(entry.provider) && (
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          disabled={reloading !== null}
+                          onClick={() => void reload(entry.provider)}
+                        >
+                          {reloading === entry.provider ? t('reloading') : t('reload')}
+                        </Button>
+                      )}
                       <Button
                         variant="secondary"
                         size="xs"
@@ -333,6 +365,11 @@ function ProviderKeysForOrg({ orgId, isOwner }: { orgId: string; isOwner: boolea
           </div>
         )}
       </div>
+      {reloadNote && (
+        <p role="status" className="mt-2 px-4 text-[12px] text-(--text-tertiary)">
+          {reloadNote}
+        </p>
+      )}
       {deleting && (
         <ConfirmationDialog
           title={t('deleteTitle', { provider: deleting.name })}
