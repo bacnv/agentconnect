@@ -139,6 +139,8 @@ export interface CpClientRegistrationHost {
 export interface CpClientReadyHost {
   readiness(): ReadinessGate | undefined
   probeRuntimesAndEmit(): Promise<void>
+  /** Re-read the model list from the connection the agents bill, so a saved provider key reaches the picker. */
+  adoptGatewayModelList(): Promise<void>
   syncOrganizationSuggestions(): Promise<void>
   memoryConnections(): CpMemoryConnectionRegistry | undefined
   replayHookTerminalReports(): Promise<void>
@@ -349,6 +351,11 @@ export function buildCpClientDeps(host: CpClientDepsHost): CpClientDeps {
       host.resolveInitialRegistry()
       host.readiness()?.refresh()
       void host.probeRuntimesAndEmit()
+      // A reconnect can mean the operator just saved a provider key: re-asking here is what makes
+      // the picker follow the credential the agents actually bill, not whatever the host env held at boot.
+      void host
+        .adoptGatewayModelList()
+        .catch((err) => host.log().warn(`gateway models: refresh failed (${(err as Error).message})`))
       void host
         .syncOrganizationSuggestions()
         .catch((err) =>

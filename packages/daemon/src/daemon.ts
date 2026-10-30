@@ -22,6 +22,7 @@ import {
   AGENT_MODEL_PROVIDER_AUTO_FEATURE,
   type ProviderCredential,
   PROVIDER_CREDENTIALS_V1_FEATURE,
+  PROVIDER_KEY_PROFILES,
   DECISION_EVALUATIONS_V1_FEATURE,
   DECISION_MODEL_EVALUATIONS_V1_FEATURE,
   DECISION_EVALUATION_FILTER_V1_FEATURE,
@@ -787,7 +788,7 @@ import {
   type ProbeOptions,
   type RuntimeProbeResult
 } from './runtimes/runtime-prober.js'
-import { applyGatewayModelList, fetchGatewayModelList } from './runtimes/gateway-model-list.js'
+import { applyGatewayModelList, customHeaderPairs, fetchGatewayModelList } from './runtimes/gateway-model-list.js'
 import { ModelCatalogService } from './runtimes/model-catalog.js'
 import { makeModelEnumerator } from './runtimes/model-enumerator.js'
 import { clusterProbeHostFactory, defaultProbeHostFactory } from './acp/probe-host-factory.js'
@@ -6293,28 +6294,53 @@ export class Daemon {
     for (const a of this.agents.values()) if (!dreamingPolicyOf(a)?.enabled) this.retireDreamStaging(a.id)
   }
 
-  /** Phase 6b — ask the gateway which combo models it serves, before anything can spawn.
+  /** Ask the gateway the agents bill which combo models it serves, before anything can spawn.
    *
-   *  The daemon's own `process.env` is the right resolver: a launch seeds state from its host env
-   *  and a probe from its RAW source env, which is this process's. Resolving through the curated
-   *  probe env instead would drop HOME and CLAUDE_CONFIG_DIR and land on the wrong file.
+   *  One connection only: the organization's stored provider key, read through the CP. A host env
+   *  key is deliberately NOT a fallback — a picker built from it advertises a different gateway's
+   *  models than the sessions dial, which is the mismatch this replaced. No stored key means no
+   *  model list written, and the operator's own settings.json stands untouched.
    *  A k8s deployment has no local gateway to ask, and an unreachable one keeps whatever the
    *  operator configured — never overridden. */
   private async adoptGatewayModelList(): Promise<void> {
     if (this.k8s) return
+    const stored = await this.storedProviderConnection()
+    if (!stored) return
     const { configDir } = resolveClaudeConfigSources(process.env)
     const settingsFile = join(configDir, 'settings.json')
-    const models = await fetchGatewayModelList(process.env.ANTHROPIC_BASE_URL, process.env.ANTHROPIC_AUTH_TOKEN, {
-      log: this.log
+    const models = await fetchGatewayModelList(stored.baseUrl, stored.key, {
+      log: this.log,
+      ...(Object.keys(stored.headers).length > 0 ? { headers: stored.headers } : {})
     })
     if (!models) return
     // Logged either way: a silent steady-state boot reads as "never ran".
     const changed = applyGatewayModelList(settingsFile, models)
     this.log.info(
-      `gateway models: ${models.length} combo model(s) from ${settingsFile}${changed ? '' : ' (unchanged)'}`
+      `gateway models: ${models.length} combo model(s) from ${settingsFile} via ${stored.baseUrl}${changed ? '' : ' (unchanged)'}`
     )
   }
 
+  /** The organization's stored Claude connection, when an agent on this daemon selected one. */
+  private async storedProviderConnection(): Promise<
+    { baseUrl: string; key: string; headers: Record<string, string> } | undefined
+  > {
+    if (!this.cpClient) return undefined
+    const agent = [...this.agents.values()].find((candidate) => candidate.modelProvider)
+    if (!agent?.modelProvider) return undefined
+    const runtime = this.runtimes[agent.runtime]
+    let credential: ProviderCredential | null
+    try {
+      const provider = organizationModelProvider(agent.modelProvider, runtime && modelProviderTarget(agent, runtime))
+      ;({ credentials: credential } = await this.cpClient.requestProviderCredentials({ agentId: agent.id, provider }))
+    } catch (err) {
+      this.log.warn(`gateway models: the organization key is unreadable — ${(err as Error).message}`)
+      return undefined
+    }
+    if (!credential) return undefined
+    const baseUrl = credential.endpoint ?? PROVIDER_KEY_PROFILES.anthropic.defaultEndpoint
+    if (!baseUrl) return undefined
+    return { baseUrl, key: credential.apiKey, headers: customHeaderPairs(credential.headers) }
+  }
   /** Phase 31 — curated admission, the deferred CP connect, the periodic sweeps, and only then: ready. */
   private armTimersAndReadiness(root: string, startControlPlane: (root: string) => Promise<void> | undefined): void {
     // Curated admission belongs to local runtime resolution, not CP readiness.
@@ -29802,6 +29828,7 @@ export class Daemon {
         this.fleetUpgrade.runBootstrapFleetUpgrade(targetVersion, operationId),
       readiness: () => this.readiness,
       probeRuntimesAndEmit: () => this.runtimeFacts.probeAndEmit(),
+      adoptGatewayModelList: () => this.adoptGatewayModelList(),
       syncOrganizationSuggestions: () => this.syncOrganizationSuggestions(),
       memoryConnections: () => this.memoryConnections,
       replayHookTerminalReports: () => this.replayHookTerminalReports(),
