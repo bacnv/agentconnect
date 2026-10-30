@@ -52,6 +52,24 @@ describe('organization model credentials', () => {
     ).toThrow('do not match')
   })
 
+  it('splits a stored custom-header block, so a pasted Cloudflare Access pair reaches the gateway', () => {
+    // The console saves a pasted ANTHROPIC_CUSTOM_HEADERS block as ONE row with a literal \n.
+    // Joined as-is, `CF-Access-Client-Id` and its secret stay inside that row's value, the
+    // gateway behind Access answers with an HTML login page, and the turn dies on no_events.
+    const env: Record<string, string> = {}
+    applyOrganizationModelCredential('anthropic', { provider: 'anthropic', runtime: 'claude' }, env, {
+      apiKey: 'organization-key',
+      endpoint: 'https://ai-api.example.test',
+      headers: {
+        anthropic_custom_headers: 'CF-Access-Client-Id: abc\\nCF-Access-Client-Secret: def',
+        claude_code_enable_gateway_model_discovery: '1'
+      }
+    })
+    expect(env.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'CF-Access-Client-Id: abc\nCF-Access-Client-Secret: def\nclaude_code_enable_gateway_model_discovery: 1'
+    )
+  })
+
   it('uses ephemeral Codex authentication and preserves the provider headers', () => {
     const env: Record<string, string> = {}
     applyOrganizationModelCredential('openai', { provider: 'openai', runtime: 'codex' }, env, {
