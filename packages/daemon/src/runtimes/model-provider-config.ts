@@ -10,6 +10,7 @@ import type { Agent } from '../agents/agent-schema.js'
 import { isClaudeRuntimeDef } from '../runtime-defs/claude-runtime.js'
 import { isOpenCodeRuntime } from '../runtime-defs/opencode-runtime.js'
 import { sharedCredentialProfile } from './runtime-credentials.js'
+import { customHeaderPairs } from './gateway-model-list.js'
 import {
   codexConfigWithBaseUrl,
   codexConfigWithFloor,
@@ -521,7 +522,7 @@ export function applyOrganizationModelCredential(
       'CLAUDE_CODE_USE_FOUNDRY'
     ])
       env[name] = ''
-    env.ANTHROPIC_CUSTOM_HEADERS = Object.entries(credential.headers)
+    env.ANTHROPIC_CUSTOM_HEADERS = Object.entries(customHeaderPairs(credential.headers))
       .map(([name, value]) => `${name}: ${value}`)
       .join('\n')
   } else if (target?.runtime === 'codex') {
