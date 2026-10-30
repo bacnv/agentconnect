@@ -35,7 +35,7 @@ interface ProviderView {
  * bounces an obviously-bad url or a literal private/loopback/link-local/metadata IP.
  * ponytail: literal-IP + protocol check only; DNS-rebinding is the relay's job.
  */
-export function blockedUpstreamUrl(raw: string): string | null {
+export function blockedUpstreamUrl(raw: string, allowlist: ReadonlySet<string> = new Set()): string | null {
   let u: URL
   try {
     u = new URL(raw)
@@ -46,12 +46,26 @@ export function blockedUpstreamUrl(raw: string): string | null {
   if (u.username || u.password) return 'url must not contain credentials'
   let host = u.hostname
   if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1) // IPv6 literal
-  if (host.toLowerCase() === 'localhost') return 'url host resolves to a private/loopback address'
+  host = host.toLowerCase()
+  // A host the deployment explicitly permits may be private: the same opt-in the relay's
+  // egress guard takes, so a stored provider cannot pass here and be refused there, or the reverse.
+  if (allowlist.has(host)) return null
+  if (host === 'localhost') return 'url host resolves to a private/loopback address'
   const fam = net.isIP(host)
   if ((fam === 4 && privateV4(host)) || (fam === 6 && privateV6(host))) {
     return 'url host is a private, loopback, link-local, or metadata IP'
   }
   return null
+}
+
+/** The deployment's opt-in set for private MCP upstream hosts, from `CP_MCP_ALLOWED_UPSTREAMS`. */
+export function configuredMcpUpstreamAllowlist(raw: string | undefined): ReadonlySet<string> {
+  return new Set(
+    (raw ?? '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean)
+  )
 }
 
 /** A fresh opaque bearer grant key. `oct_` prefix + 24 random bytes (base64url). */
