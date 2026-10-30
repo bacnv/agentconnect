@@ -24,7 +24,13 @@ import type { OrgId } from '../../domain/ids.js'
 import { orgOf, denyViewerWrite, ctxOf } from '../rbac.js'
 import { canView, canEdit, canManageSharing, type ViewCtx } from '../../authorization/policy.js'
 import { resolveShareSet } from '../sharing.js'
-import { blockedUpstreamUrl, currentMcpGrant, grantKeyHash, type GrantView } from '../../orchestrator/mcpProvider.js'
+import {
+  blockedUpstreamUrl,
+  configuredMcpUpstreamAllowlist,
+  currentMcpGrant,
+  grantKeyHash,
+  type GrantView
+} from '../../orchestrator/mcpProvider.js'
 import { makeMcpPush } from '../mcp-push.js'
 import { resolveUpstreamHeaders } from '../../orchestrator/mcpUpstreamHeaders.js'
 import { serializeByProvider, serializeByProviderNames } from '../provider-chain.js'
@@ -142,6 +148,9 @@ function toDto(
 export function mcpProviderRoutes(deps: HttpDeps) {
   return async function mcpProviderRoutesPlugin(app: FastifyInstance): Promise<void> {
     const r = app.withTypeProvider<ZodTypeProvider>()
+    // The same deploy permission the relay's egress guard reads, so a provider stored here is
+    // callable there: one opt-in, checked at both ends.
+    const upstreamAllowlist = configuredMcpUpstreamAllowlist(deps.config.CP_MCP_ALLOWED_UPSTREAMS)
 
     // Saved headers are bound on the relay by now: a request waiting for one completes (capability-requests.md §4.9.1).
     const headersSaved = async (orgId: OrgId, provider: McpProviderRecord, userId: string): Promise<void> => {
@@ -264,7 +273,7 @@ export function mcpProviderRoutes(deps: HttpDeps) {
             .code(400)
             .send({ error: 'Bad Request', statusCode: 400, message: 'only the http transport is supported' })
         }
-        const blocked = blockedUpstreamUrl(req.body.url)
+        const blocked = blockedUpstreamUrl(req.body.url, upstreamAllowlist)
         if (blocked) {
           return reply.code(400).send({ error: 'Bad Request', statusCode: 400, message: blocked })
         }
@@ -358,7 +367,7 @@ export function mcpProviderRoutes(deps: HttpDeps) {
           })
         }
         if (req.body.url !== undefined) {
-          const blocked = blockedUpstreamUrl(req.body.url)
+          const blocked = blockedUpstreamUrl(req.body.url, upstreamAllowlist)
           if (blocked) return reply.code(400).send({ error: 'Bad Request', statusCode: 400, message: blocked })
         }
         // Name is immutable (see UpdateMcpProviderBody): agents bind by name and there's

@@ -246,6 +246,9 @@ const CoreConfigShape = {
   CP_ALLOWED_OUTBOUND_HOSTS: z.string().optional(),
   // Unified pure-intranet hostname allowlist merged into CP outbound checks (GitLab CE, Mattermost, etc.).
   AGENTCONNECT_INTERNAL_ALLOWED_HOSTS: z.string().optional(),
+  // The write-time twin of RELAY_MCP_ALLOWED_UPSTREAMS: set the same hosts in both, or a provider
+  // saves and then fails at the relay's egress guard.
+  CP_MCP_ALLOWED_UPSTREAMS: z.string().optional(),
   // ── Preset agents (docs/designs/preset-agents.md §3) — default ON ──
   // Every org is born with the `agentconnect` general preset (org-creation seam)
   // and existing orgs are backfilled once at boot. 'false' turns BOTH off for
