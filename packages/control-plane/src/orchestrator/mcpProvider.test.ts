@@ -93,6 +93,21 @@ describe('mcpProxyDef', () => {
     expect(def.issuedAt).toBe(1_700_000_000_000)
   })
 
+  it('moves its order marker when the provider is edited without a grant rotation', () => {
+    // The def cannot carry the upstream url — it points at the proxy — so an edit that only moves
+    // that url produces a byte-identical definition. Ordering on the grant alone made the daemon's
+    // ordered upsert answer false, and a hosted server kept dialing the address it was given first.
+    const grant = { key: 'oct_secret', createdAt: new Date(1_700_000_000_000) }
+    const edited = mcpProxyDef(
+      { ...provider, updatedAt: new Date(1_700_000_060_000) },
+      grant,
+      'https://relay.example.com'
+    )
+    expect(edited.issuedAt).toBe(1_700_000_060_000)
+    // Everything the def is allowed to carry is unchanged; only the marker moved.
+    expect({ ...edited, issuedAt: 0 }).toEqual({ ...def, issuedAt: 0 })
+  })
+
   it('is a valid McpServerSpec', () => {
     expect(() => McpServerSpec.parse(def)).not.toThrow()
   })
