@@ -3802,6 +3802,7 @@ export function httpServerConfigFrom(
     DAEMON_OFFLINE_GRACE_MS: config.HEARTBEAT_SEC * config.MISSED_BEATS * 1000,
     ...(config.PUBLIC_CP_URL ? { PUBLIC_CP_URL: config.PUBLIC_CP_URL } : {}),
     ...(config.OPENAPI_PATH_PREFIX ? { OPENAPI_PATH_PREFIX: config.OPENAPI_PATH_PREFIX } : {}),
+    ...(config.CP_MCP_ALLOWED_UPSTREAMS ? { CP_MCP_ALLOWED_UPSTREAMS: config.CP_MCP_ALLOWED_UPSTREAMS } : {}),
     ...(config.PUBLIC_MCP_URL ? { PUBLIC_MCP_URL: config.PUBLIC_MCP_URL } : {}),
     ...(config.DAEMON_DIST_TAG ? { DAEMON_DIST_TAG: config.DAEMON_DIST_TAG } : {}),
     ...(config.COMPUTER_IMAGE ? { COMPUTER_IMAGE: config.COMPUTER_IMAGE } : {}),

@@ -152,6 +152,9 @@ export interface HttpServerConfig extends HumanAuthConfig {
   PUBLIC_CP_URL?: string
   /** Prefix a gateway exposes `/api/v1` under; the OpenAPI document keys its paths by it. */
   OPENAPI_PATH_PREFIX?: string
+  /** Hosts a stored MCP provider may name even though they resolve to a private address
+   *  (comma-separated). The write-time twin of the relay's RELAY_MCP_ALLOWED_UPSTREAMS. */
+  CP_MCP_ALLOWED_UPSTREAMS?: string
   /** The MCP endpoint's dedicated public origin (e.g.
    *  https://mcp.example.test). Set ⇒ the canonical MCP resource URL is this
    *  origin (root resource) and discovery uses the origin-root PRM. Unset ⇒
