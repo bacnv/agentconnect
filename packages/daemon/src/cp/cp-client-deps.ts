@@ -183,6 +183,8 @@ export interface CpClientSeamHost {
   k8sPlane(): K8sRuntimePlane | undefined
   /** A cluster member's requested re-probe, or undefined where the deployment takes no requests. */
   runtimeProbeRequest(): (() => void) | undefined
+  /** Re-read the gateway's combo list for the stored Anthropic key (the console's "reload models"). */
+  reloadGatewayModels(): Promise<void>
   /** This member's desktop claims for managed computers, or undefined where it serves none (computer-use.md §15.1). */
   computerPool(): ComputerPool | undefined
   workspaceFilesFor: WorkspaceFilesResolver
@@ -462,6 +464,7 @@ export function buildCpClientDeps(host: CpClientDepsHost): CpClientDeps {
       message: (req) => workspaceGit.message(req)
     },
     ...(host.runtimeProbeRequest() ? { runtimeProbe: host.runtimeProbeRequest()! } : {}),
+    reloadGatewayModels: () => host.reloadGatewayModels(),
     ...(host.computerPool() ? { computerPoolOp: (op) => host.computerPool()!.handle(op) } : {}),
     // A pure projection of the in-memory lease — no I/O, no runtime, and nothing it can do to a
     // reclaim decision, so it needs neither of the workspace coordinators.

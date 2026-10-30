@@ -337,6 +337,50 @@ export function daemonRoutes(deps: HttpDeps) {
       }
     )
 
+    // The Provider-keys "reload models" button: every daemon serving this organization re-reads
+    // the model sources a picker is built from — the gateway's combo list for the stored Anthropic
+    // key, and each adapter's own advertised list. Owner-only, and a fan-out rather than one
+    // daemon because an org's agents can be placed anywhere.
+    r.post(
+      '/models/reload',
+      {
+        schema: {
+          tags: [Tag.ProviderKeys],
+          summary: 'Reload model lists from their sources',
+          description:
+            'Asks every reachable daemon serving this organization to re-read the models its pickers offer: the gateway combo list behind the stored Anthropic key, and each runtime adapter’s own advertised list. Use after adding a combo at the gateway. Owner-only. 202 with the daemons that accepted, 503 when none could be reached or none takes requests.',
+          operationId: 'reloadModels',
+          response: { 202: PoolRuntimeProbeDto, 403: ErrorDto, 503: ErrorDto }
+        }
+      },
+      async (req, reply) => {
+        if (denyNonOwner(req, reply)) return
+        const ctx = ctxOf(req)
+        const members = (await deps.registry.listAvailable(orgOf(req), ctx)).filter((d) =>
+          d.capabilities.features.includes(RUNTIME_PROBE_FEATURE)
+        )
+        if (members.length === 0)
+          return reply.code(503).send({
+            error: 'Service Unavailable',
+            statusCode: 503,
+            message: 'no daemon serving this organization takes model reload requests'
+          })
+        const acks = await Promise.allSettled(
+          members
+            .filter((d) => deps.liveness.get(d.daemonId)?.state === 'READY')
+            .map((d) => deps.control.runtimeProbe(d.daemonId))
+        )
+        const accepted = acks.filter((ack) => ack.status === 'fulfilled' && ack.value.ok).length
+        if (accepted === 0)
+          return reply.code(503).send({
+            error: 'Service Unavailable',
+            statusCode: 503,
+            message: 'no daemon accepted the model reload request'
+          })
+        return reply.code(202).send({ state: 'probing', members: accepted })
+      }
+    )
+
     r.get(
       '/daemons/:id',
       {

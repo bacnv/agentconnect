@@ -7788,6 +7788,12 @@ export function fetchProviderKeys(orgId: string): Promise<ProviderKeyStatus[]> {
   return apiGet<ProviderKeyStatus[]>(`${orgBase(orgId)}/provider-keys`)
 }
 
+// Ask every daemon serving this organization to re-read its model sources, so a combo added at the
+// gateway (or a model an adapter now advertises) reaches a picker without a daemon restart.
+export function reloadModels(orgId: string): Promise<PoolRuntimeProbeDto> {
+  return apiPost<PoolRuntimeProbeDto>(`${orgBase(orgId)}/models/reload`, {})
+}
+
 export function setProviderKey(
   orgId: string,
   provider: ProviderKeyProvider,
