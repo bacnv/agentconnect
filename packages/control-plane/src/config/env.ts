@@ -212,6 +212,10 @@ const CoreConfigShape = {
   // (mcp-provider-oauth.md). Comma-separated. Deliberately NOT the relay's
   // RELAY_MCP_ALLOWED_UPSTREAMS: CP egress and relay egress are separate permissions.
   CP_ALLOWED_OUTBOUND_HOSTS: z.string().optional(),
+  // Hosts a stored MCP provider may name even though they resolve to a private address.
+  // Comma-separated. The write-time twin of RELAY_MCP_ALLOWED_UPSTREAMS: set the same hosts in
+  // both, or a provider saves and then fails at the relay's egress guard.
+  CP_MCP_ALLOWED_UPSTREAMS: z.string().optional(),
   // ── Preset agents (docs/designs/preset-agents.md §3) — default ON ──
   // Every org is born with the `agentconnect` general preset (org-creation seam)
   // and existing orgs are backfilled once at boot. 'false' turns BOTH off for

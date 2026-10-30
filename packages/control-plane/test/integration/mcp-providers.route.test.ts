@@ -588,3 +588,38 @@ describe('DELETE /mcp-providers/:id — serialized against agent enable-list wri
     expect((await app.app.inject({ method: 'DELETE', url: `${ORG}/mcp-providers/${providerId}` })).statusCode).toBe(204)
   })
 })
+
+describe('MCP provider upstream SSRF gate', () => {
+  it('refuses an internal address the deployment did not opt in to', async () => {
+    const app = makeApp()
+    const res = await app.app.inject({
+      method: 'POST',
+      url: `${ORG}/mcp-providers`,
+      payload: { name: 'internal-mcp', url: 'http://192.168.61.80:4750/mcp' }
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('accepts a host its deployment allowlisted, so an internal MCP provider can be registered', async () => {
+    // The same opt-in the relay's egress guard reads: store it here and it is callable there.
+    const app = buildHttpApp(prisma, { CP_MCP_ALLOWED_UPSTREAMS: '192.168.61.80' })
+    opened.push(app)
+    const res = await app.app.inject({
+      method: 'POST',
+      url: `${ORG}/mcp-providers`,
+      payload: { name: 'internal-mcp', url: 'http://192.168.61.80:4750/mcp' }
+    })
+    expect(res.statusCode).toBe(201)
+  })
+
+  it('does not let the allowlist open a different private host', async () => {
+    const app = buildHttpApp(prisma, { CP_MCP_ALLOWED_UPSTREAMS: '192.168.61.80' })
+    opened.push(app)
+    const res = await app.app.inject({
+      method: 'POST',
+      url: `${ORG}/mcp-providers`,
+      payload: { name: 'other-mcp', url: 'http://192.168.61.99:4750/mcp' }
+    })
+    expect(res.statusCode).toBe(400)
+  })
+})
