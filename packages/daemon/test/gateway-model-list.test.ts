@@ -45,6 +45,32 @@ describe('fetchGatewayModelList', () => {
     expect(seen).toEqual({ url: 'https://gw.example/v1/models', auth: 'Bearer tok' })
   })
 
+  it('probes /v1/models on an origin-style endpoint, because a stored endpoint may carry no /v1', async () => {
+    const seen: string[] = []
+    const spy = (async (url: string) => {
+      seen.push(url)
+      // The origin itself 404s the listing; only the /v1 form answers it.
+      return url.endsWith('/v1/models')
+        ? new Response(JSON.stringify(gatewayPayload), { status: 200 })
+        : new Response('not found', { status: 404 })
+    }) as unknown as typeof fetch
+    expect(await fetchGatewayModelList('https://ai-api.example', 'tok', { fetchImpl: spy })).toEqual([
+      'combo-gpt',
+      'combo-haiku'
+    ])
+    expect(seen).toEqual(['https://ai-api.example/v1/models'])
+  })
+
+  it('keeps an already-/v1 endpoint on one request, never doubling the segment', async () => {
+    const seen: string[] = []
+    const spy = (async (url: string) => {
+      seen.push(url)
+      return new Response(JSON.stringify(gatewayPayload), { status: 200 })
+    }) as unknown as typeof fetch
+    await fetchGatewayModelList('https://gw.example/v1', 'tok', { fetchImpl: spy })
+    expect(seen).toEqual(['https://gw.example/v1/models'])
+  })
+
   it('returns undefined rather than throwing when the gateway is unreachable, refuses, or answers junk', async () => {
     const boom = (async () => {
       throw new Error('ECONNREFUSED')

@@ -59,33 +59,47 @@ export async function fetchGatewayModelList(
   } = {}
 ): Promise<string[] | undefined> {
   if (!baseUrl?.trim() || !token?.trim()) return undefined
-  const url = `${baseUrl.replace(/\/+$/, '')}/models`
+  // A stored endpoint is an origin or a `/v1` base depending on who saved it; the listing lives at
+  // `<base>/v1/models` either way. Try the `/v1` form first, then the bare one, so one stored shape
+  // does not read as "this gateway has no listing".
+  const base = baseUrl.trim().replace(/\/+$/, '')
+  const urls = base.endsWith('/v1') ? [`${base}/models`] : [`${base}/v1/models`, `${base}/models`]
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   try {
-    const res = await (opts.fetchImpl ?? fetch)(url, {
-      headers: { ...opts.headers, Authorization: `Bearer ${token}` },
-      signal: controller.signal
-    })
-    if (!res.ok) {
-      opts.log?.warn(`gateway models: ${url} answered ${res.status}; keeping the current list`)
-      return undefined
+    for (const [index, url] of urls.entries()) {
+      let res: Response
+      try {
+        res = await (opts.fetchImpl ?? fetch)(url, {
+          headers: { ...opts.headers, Authorization: `Bearer ${token}` },
+          signal: controller.signal
+        })
+      } catch (err) {
+        opts.log?.warn(`gateway models: ${url} failed — ${err instanceof Error ? err.message : 'unknown error'}`)
+        return undefined
+      }
+      if (!res.ok) {
+        // Only the last candidate's failure is final; an origin that wants `/v1` answers 404 here.
+        if (index === urls.length - 1) {
+          opts.log?.warn(`gateway models: ${url} answered ${res.status}; keeping the current list`)
+          return undefined
+        }
+        continue
+      }
+      const payload = (await res.json()) as { data?: unknown }
+      if (!Array.isArray(payload?.data)) {
+        opts.log?.warn(`gateway models: ${url} did not answer an OpenAI-shaped model list; ignoring it`)
+        continue
+      }
+      const ids: string[] = []
+      for (const entry of payload.data) {
+        if (typeof entry !== 'object' || entry === null) continue
+        const { id, owned_by: owner } = entry as { id?: unknown; owned_by?: unknown }
+        if (typeof id !== 'string' || !id.trim() || owner !== COMBO_OWNER) continue
+        ids.push(id.trim())
+      }
+      return [...new Set(ids)].sort()
     }
-    const payload = (await res.json()) as { data?: unknown }
-    if (!Array.isArray(payload?.data)) {
-      opts.log?.warn(`gateway models: ${url} did not answer an OpenAI-shaped model list; ignoring it`)
-      return undefined
-    }
-    const ids: string[] = []
-    for (const entry of payload.data) {
-      if (typeof entry !== 'object' || entry === null) continue
-      const { id, owned_by: owner } = entry as { id?: unknown; owned_by?: unknown }
-      if (typeof id !== 'string' || !id.trim() || owner !== COMBO_OWNER) continue
-      ids.push(id.trim())
-    }
-    return [...new Set(ids)].sort()
-  } catch (err) {
-    opts.log?.warn(`gateway models: ${url} failed — ${err instanceof Error ? err.message : 'unknown error'}`)
     return undefined
   } finally {
     clearTimeout(timer)
