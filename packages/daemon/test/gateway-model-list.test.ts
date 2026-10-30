@@ -78,8 +78,40 @@ describe('applyGatewayModelList', () => {
     const file = settingsFile()
     expect(applyGatewayModelList(file, ['kimi-k-2-7-code', 'glm-5.3-flash'])).toBe(true)
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
-      availableModels: [...ALIASES, 'kimi-k-2-7-code', 'glm-5.3-flash']
+      availableModels: [...ALIASES, 'kimi-k-2-7-code', 'glm-5.3-flash'],
+      modelPicker: {
+        options: [
+          { model: 'kimi-k-2-7-code', label: 'kimi-k-2-7-code', behavesAs: 'claude-sonnet-5' },
+          { model: 'glm-5.3-flash', label: 'glm-5.3-flash', behavesAs: 'claude-sonnet-5' }
+        ]
+      }
     })
+  })
+
+  it('maps every gateway id for the CLI, and leaves the alias rows unmapped', () => {
+    // Without behavesAs the CLI rejects a real turn on an id its catalog does not know, even
+    // though the picker advertised it: "Unable to validate model" at set_config_option.
+    const file = settingsFile()
+    applyGatewayModelList(file, ['hermes-home', 'haiku'])
+    const picker = JSON.parse(readFileSync(file, 'utf8')).modelPicker
+    expect(picker.options).toEqual([{ model: 'hermes-home', label: 'hermes-home', behavesAs: 'claude-sonnet-5' }])
+  })
+
+  it('keeps an operator’s label and mapping for a gateway id, and never overrides their picker rows', () => {
+    const file = settingsFile(
+      JSON.stringify({
+        modelPicker: {
+          options: [
+            { model: 'hermes-home', label: 'Hermes (home)', behavesAs: 'claude-opus-5-5' },
+            { model: 'not-served-now', label: 'stale', behavesAs: 'claude-sonnet-5' }
+          ]
+        }
+      })
+    )
+    applyGatewayModelList(file, ['hermes-home'])
+    expect(JSON.parse(readFileSync(file, 'utf8')).modelPicker.options).toEqual([
+      { model: 'hermes-home', label: 'Hermes (home)', behavesAs: 'claude-opus-5-5' }
+    ])
   })
 
   it('does not repeat an alias the gateway also serves as a combo', () => {
@@ -94,7 +126,10 @@ describe('applyGatewayModelList', () => {
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
       env: { ANTHROPIC_BASE_URL: 'https://gw.example/v1' },
       model: 'opus',
-      availableModels: [...ALIASES, 'kimi-k-2-7-code']
+      availableModels: [...ALIASES, 'kimi-k-2-7-code'],
+      modelPicker: {
+        options: [{ model: 'kimi-k-2-7-code', label: 'kimi-k-2-7-code', behavesAs: 'claude-sonnet-5' }]
+      }
     })
   })
 
@@ -140,7 +175,8 @@ describe('applyGatewayModelList', () => {
     applyGatewayModelList(file, ['combo-gpt'])
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
       model: 'opus',
-      availableModels: [...ALIASES, 'combo-gpt']
+      availableModels: [...ALIASES, 'combo-gpt'],
+      modelPicker: { options: [{ model: 'combo-gpt', label: 'combo-gpt', behavesAs: 'claude-sonnet-5' }] }
     })
   })
 
