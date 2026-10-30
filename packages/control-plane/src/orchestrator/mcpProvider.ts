@@ -26,6 +26,11 @@ interface ProviderView {
   /** Daemon-hosted (MCP Apps, webchat-mcp-apps.md §4). Carried through to the pushed definition so
    *  the owning daemon connects to the proxy itself instead of handing it to the runtime. */
   ui?: boolean
+  /** The provider's last write. The def cannot carry the upstream url (it is the proxy address the
+   *  daemon dials), so an edit that only moves that url would otherwise produce a byte-identical
+   *  definition and be dropped by the daemon's ordered upsert — a hosted server then keeps the
+   *  connection it dialed against the old address until the next restart. */
+  updatedAt?: Date
 }
 
 /**
@@ -118,10 +123,14 @@ export function currentMcpGrant<T extends GrantView>(active: readonly T[]): T | 
  * ordering marker and the key it orders always come from the same grant.
  */
 export function mcpProxyDef(provider: ProviderView, grant: GrantView, relayBaseUrl: string): McpServerSpec {
+  // The ordering marker is the LATER of the grant and the provider's own write. A url/header edit
+  // re-pushes through here without re-minting the grant, so ordering on the grant alone would hand
+  // the daemon a definition identical to one it already holds and the edit would never land.
+  const issuedAt = Math.max(grant.createdAt.getTime(), provider.updatedAt?.getTime() ?? 0)
   return {
     orgId: provider.orgId,
     name: provider.name,
-    issuedAt: grant.createdAt.getTime(),
+    issuedAt,
     transport: 'http',
     url: `${relayBaseUrl}/mcp/${provider.id}`,
     headers: [{ name: 'Authorization', value: `Bearer ${grant.key}` }],

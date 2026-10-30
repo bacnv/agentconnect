@@ -78,3 +78,25 @@ describe('CpMcpDefs.isOrgScoped — what a connection may be keyed by', () => {
     expect(defs.isOrgScoped('org-b', 'charts')).toBe(false)
   })
 })
+
+describe('a definition edited after a failed dial', () => {
+  it('announces a same-grant edit that only moves the order marker', () => {
+    // The def points at the proxy, so an operator fixing the upstream url changes nothing it can
+    // carry — the CP raises `issuedAt` instead. That raise is the ONLY reason the daemon re-dials,
+    // so dropping it as "nothing changed" is what stranded a hosted server on a bad address.
+    const defs = new CpMcpDefs({})
+    const first = vi.fn()
+    defs.upsert(ORG, 'charts', { ...DEF, ui: true } as never, 1_000) && first()
+    expect(first).toHaveBeenCalled()
+    const edited = vi.fn()
+    const applied = defs.upsert(ORG, 'charts', { ...DEF, ui: true } as never, 2_000)
+    if (applied) edited()
+    expect(edited).toHaveBeenCalled()
+  })
+
+  it('still refuses a strictly older marker, so a slow push cannot undo an edit', () => {
+    const defs = new CpMcpDefs({})
+    defs.upsert(ORG, 'charts', { ...DEF, ui: true } as never, 2_000)
+    expect(defs.upsert(ORG, 'charts', { ...DEF, ui: true } as never, 1_000)).toBe(false)
+  })
+})
