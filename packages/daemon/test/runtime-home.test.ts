@@ -107,12 +107,16 @@ describe('private runtime HOME', () => {
     expect(existsSync(join(home, '.claude', 'sessions'))).toBe(false)
   })
 
-  it('carries the operator availableModels list into a private home, and nothing else from settings', () => {
+  it('carries the operator model rows into a private home, and nothing else from settings', () => {
     const { hostHome, scopeDir } = fixture()
+    const modelPicker = {
+      options: [{ model: 'deepseek-v4.1-flash', label: 'deepseek-v4.1-flash', behavesAs: 'claude-sonnet-5' }]
+    }
     writeFileSync(
       join(hostHome, '.claude', 'settings.json'),
       JSON.stringify({
         availableModels: ['haiku', 'deepseek-v4.1-flash', 'glm-5.3-flash'],
+        modelPicker,
         env: { CLAUDE_SECURESTORAGE_CONFIG_DIR: '/host/private/auth' },
         hooks: { Stop: [{ hooks: [{ type: 'command', command: '/host/private/hook.sh' }] }] },
         statusLine: { command: '/host/private/statusline.sh' }
@@ -120,9 +124,57 @@ describe('private runtime HOME', () => {
     )
 
     const home = prepareRuntimeHome('claude-acp', scopeDir, { HOME: hostHome })
+    // Both rows: without modelPicker the CLI refuses a gateway id the picker advertises.
     expect(JSON.parse(readFileSync(join(home, '.claude', 'settings.json'), 'utf8'))).toEqual({
-      availableModels: ['haiku', 'deepseek-v4.1-flash', 'glm-5.3-flash']
+      availableModels: ['haiku', 'deepseek-v4.1-flash', 'glm-5.3-flash'],
+      modelPicker
     })
+  })
+
+  it('fills modelPicker into a private home seeded before it was projected, keeping the private rows', () => {
+    const { hostHome, scopeDir } = fixture()
+    const hostSettings = join(hostHome, '.claude', 'settings.json')
+    writeFileSync(hostSettings, JSON.stringify({ availableModels: ['haiku', 'deepseek-v4.1-flash'] }))
+    const home = prepareRuntimeHome('claude-acp', scopeDir, { HOME: hostHome })
+    const privateSettings = join(home, '.claude', 'settings.json')
+    expect(JSON.parse(readFileSync(privateSettings, 'utf8'))).toEqual({
+      availableModels: ['haiku', 'deepseek-v4.1-flash']
+    })
+
+    const modelPicker = {
+      options: [{ model: 'deepseek-v4.1-flash', label: 'deepseek-v4.1-flash', behavesAs: 'claude-sonnet-5' }]
+    }
+    writeFileSync(hostSettings, JSON.stringify({ availableModels: ['haiku', 'deepseek-v4.1-flash'], modelPicker }))
+    prepareRuntimeHome('claude-acp', scopeDir, { HOME: hostHome })
+    // The private list stays authoritative; only the key it never had is filled.
+    expect(JSON.parse(readFileSync(privateSettings, 'utf8'))).toEqual({
+      availableModels: ['haiku', 'deepseek-v4.1-flash'],
+      modelPicker
+    })
+  })
+
+  it('leaves a private modelPicker alone once the agent home has one', () => {
+    const { hostHome, scopeDir } = fixture()
+    const hostSettings = join(hostHome, '.claude', 'settings.json')
+    writeFileSync(
+      hostSettings,
+      JSON.stringify({
+        availableModels: ['haiku'],
+        modelPicker: { options: [{ model: 'haiku', behavesAs: 'claude-haiku' }] }
+      })
+    )
+    const home = prepareRuntimeHome('claude-acp', scopeDir, { HOME: hostHome })
+    const privateSettings = join(home, '.claude', 'settings.json')
+    const before = readFileSync(privateSettings, 'utf8')
+    writeFileSync(
+      hostSettings,
+      JSON.stringify({
+        availableModels: ['haiku'],
+        modelPicker: { options: [{ model: 'opus', behavesAs: 'claude-opus-5' }] }
+      })
+    )
+    prepareRuntimeHome('claude-acp', scopeDir, { HOME: hostHome })
+    expect(readFileSync(privateSettings, 'utf8')).toBe(before)
   })
 
   it('leaves Claude cold when the host global config has no model rollout cache', () => {
