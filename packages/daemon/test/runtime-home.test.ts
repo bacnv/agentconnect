@@ -131,6 +131,23 @@ describe('private runtime HOME', () => {
     })
   })
 
+  it('still seeds the model rows when the agent runs on an organization provider key', () => {
+    const { hostHome, scopeDir } = fixture()
+    const modelPicker = {
+      options: [{ model: 'gpt-deepseek-v4.1-flash', label: 'gpt-deepseek-v4.1-flash', behavesAs: 'claude-sonnet-5' }]
+    }
+    writeFileSync(
+      join(hostHome, '.claude', 'settings.json'),
+      JSON.stringify({ availableModels: ['gpt-deepseek-v4.1-flash'], modelPicker })
+    )
+    // `inheritCredentials: false` is what a provider-key agent passes; credentials stay out, the rows do not.
+    const home = prepareRuntimeHome('claude-acp', scopeDir, { HOME: hostHome }, undefined, [], false)
+    expect(JSON.parse(readFileSync(join(home, '.claude', 'settings.json'), 'utf8'))).toEqual({
+      availableModels: ['gpt-deepseek-v4.1-flash'],
+      modelPicker
+    })
+  })
+
   it('fills modelPicker into a private home seeded before it was projected, keeping the private rows', () => {
     const { hostHome, scopeDir } = fixture()
     const hostSettings = join(hostHome, '.claude', 'settings.json')

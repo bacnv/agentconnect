@@ -337,7 +337,12 @@ export function prepareRuntimeHome(
   const home = targetHome ? resolve(targetHome) : runtimeHomePath(scopeDir)
   ensurePrivateDir(home)
   const excluded = new Set(excludedDestinations.map((destination) => containedDestination(home, destination)))
-  const locations = inheritCredentials ? runtimeStateLocations(runtimeId, hostEnv) : []
+  // The model rows are configuration, not a credential: an agent on an organization provider key sets
+  // inheritCredentials false and would otherwise advertise ids the CLI cannot resolve.
+  const allLocations = runtimeStateLocations(runtimeId, hostEnv)
+  const locations = inheritCredentials
+    ? allLocations
+    : allLocations.filter((location) => location.seedJsonKeys?.includes('modelPicker'))
   const credentialDestinations = locations.flatMap((location) =>
     (location.credentialFiles ?? []).map((file) => containedDestination(home, join(location.destination, file.path)))
   )
