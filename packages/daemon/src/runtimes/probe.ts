@@ -196,7 +196,9 @@ const CLAUDE_FIRST_START_KEYS = [
   'seenNotifications'
 ] as const
 const CLAUDE_GLOBAL_SEED_KEYS = ['additionalModelOptionsCache', 'primaryApiKey', ...CLAUDE_FIRST_START_KEYS] as const
-const CLAUDE_MODEL_SETTINGS_SEED_KEYS = ['availableModels'] as const
+// Both rows: `availableModels` is what the adapter advertises, `modelPicker` is what makes the CLI
+// accept a gateway id its catalog does not know — seeded alone, every combo turn fails there.
+const CLAUDE_MODEL_SETTINGS_SEED_KEYS = ['availableModels', 'modelPicker'] as const
 /** DeepSeek Harness auth: the managed 0600 credential store plus its .env fallback. */
 const DSH_CREDENTIALS = [
   { path: '.credentials.yaml', format: 'dsh' },

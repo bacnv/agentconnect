@@ -183,6 +183,30 @@ function projectedJson(source: string, keys: readonly string[]): string | undefi
   return `${JSON.stringify(projected)}\n`
 }
 
+/** A private home seeded before `modelPicker` joined the list keeps its own copy forever, and a gateway
+ *  id the picker advertises is refused by the CLI without it. Fill only the missing key: the private
+ *  file stays authoritative for everything already in it. */
+function fillModelPicker(source: string, destination: string, seedJsonKeys?: readonly string[]): void {
+  if (!seedJsonKeys?.includes('modelPicker') || !seedJsonKeys.includes('availableModels')) return
+  try {
+    const sourceStat = lstatSync(source)
+    if (!sourceStat.isFile() || sourceStat.size > MAX_SEED_FILE_BYTES) return
+    const projected = JSON.parse(projectedJson(source, ['modelPicker']) ?? '{}') as Record<string, unknown>
+    const picker = projected.modelPicker
+    if (!picker || (typeof picker === 'object' && Object.keys(picker).length === 0)) return
+    const existing: unknown = JSON.parse(readRegularFileSync(destination, MAX_PRIVATE_CONFIG_BYTES).toString('utf8'))
+    if (!existing || typeof existing !== 'object' || Array.isArray(existing) || Object.hasOwn(existing, 'modelPicker'))
+      return
+    writeFileSync(destination, `${JSON.stringify({ ...existing, modelPicker: picker })}\n`, {
+      encoding: 'utf8',
+      mode: 0o600
+    })
+  } catch (error) {
+    // A FIFO or device in place of either file fails like a symlink; otherwise the private config stays authoritative.
+    if (error instanceof RegularFileError && error.reason === 'not-a-file') throw error
+  }
+}
+
 function copySeedFile(
   source: string,
   destination: string,
@@ -222,6 +246,7 @@ function copySeedFile(
         if (error instanceof RegularFileError && error.reason === 'not-a-file') throw error
       }
     }
+    fillModelPicker(source, destination, seedJsonKeys)
     return
   }
   let stat
