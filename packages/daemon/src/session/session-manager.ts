@@ -1120,7 +1120,6 @@ export class SessionManager {
     const quotedAttachments = msg.quoted?.attachments
     if (quotedAttachments?.length && options.coordinatorBatch === undefined) {
       blocks.push(...(await abortable(() => buildAttachmentBlocks(quotedAttachments, attachmentDeps), signal)))
-(feat(daemon): carry a quoted message's files into the prompt as pixels)
     }
 
     // Per-activation semantic recall happens only after the real user/peer/unread

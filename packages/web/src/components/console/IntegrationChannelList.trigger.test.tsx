@@ -60,7 +60,6 @@ async function openMenu(channels: Parameters<typeof IntegrationChannelList>[0]['
     (g) => !g.getAttribute('aria-labelledby') && g.querySelector('[role="menuitemradio"]')?.textContent === 'Off'
   )
   return off ? [...items, ...off.querySelectorAll('[role="menuitemradio"]')] : items
-(test(console): find the trigger menu by name, not by position)
 }
 
 const menuFor = async (platform: string): Promise<string[]> =>

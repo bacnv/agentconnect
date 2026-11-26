@@ -173,6 +173,8 @@ describe('Mattermost Layer-1 searchPublicMessages', () => {
           mode: 'direct',
           bindRules: [],
           mutedChannels: [],
+          affinityDenied: [],
+          overriddenThreads: [],
           gated: false,
           sessionModes: [],
           decisions: { bindings: [], definitions: [] }

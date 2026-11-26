@@ -257,6 +257,8 @@ describe('IntegrationChannel url & conversationLink', () => {
       }).url
     ).toBe('http://localhost:8065/agentconnect/channels/playground')
     expect(IntegrationChannel.safeParse({ id: 'ch2', url: 'javascript:alert(1)' }).success).toBe(false)
+  })
+})
 
 describe('IntegrationCoreEnvelope fences', () => {
   it('parses the bare-string fence every existing producer sends', () => {
@@ -326,6 +328,5 @@ describe('IntegrationChannel.threads', () => {
 
   it('leaves threads absent on a conversation that reports none', () => {
     expect(IntegrationChannel.parse({ id: '-100' }).threads).toBeUndefined()
-(feat: a Telegram forum topic carries its own trigger)
   })
 })

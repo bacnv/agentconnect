@@ -121,6 +121,8 @@ const googleChatInt: Integration = {
     mode: 'shared',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }
@@ -135,6 +137,8 @@ const mattermostInt: Integration = {
     mode: 'direct',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
+    overriddenThreads: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }

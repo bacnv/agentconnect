@@ -768,6 +768,7 @@ import { buildWelcome } from './platforms/welcome.js'
 import {
   rootPostNeedsThreadMaterialization,
   rootPostThreadName,
+  threadContainerFor,
   threadKeyForPost,
   threadRootResolver
 } from './platforms/thread-keys.js'
@@ -1441,7 +1442,6 @@ import {
   telegramReplyTarget as telegramReplyTargetExternal
 } from './platforms/telegram/threading.js'
 import { TurnOutputRegistry, type TurnAcknowledgement, type TurnAcknowledgementEnd } from './platforms/turn-output.js'
-(feat: a Telegram forum topic carries its own trigger)
 import { boundedDiagnostic, formatErr, startFailureDetail } from './daemon/text.js'
 import { BackgroundExecs, noteOpenExec } from './daemon/background-execs.js'
 import { HostPasses } from './daemon/host-passes.js'
@@ -33984,7 +33984,7 @@ export class Daemon {
   private async anchorTrigger(
     agentId: string,
     msg: NormalizedMessage,
-    target: { channel?: string; integrationId?: string } | undefined,
+    target: { channel?: string; integrationId?: string; thread?: string } | undefined,
     anchorText: string,
     label: string,
     safetyReviewLane?: string
@@ -34051,13 +34051,15 @@ export class Daemon {
               })
             : undefined
           postAttempted = true
+          // A Telegram forum topic: the anchor must land INSIDE it — posted outside it files under General.
+          const container = threadContainerFor(msg.platform, target.thread)
           const ts = await this.postIntoConfiguredTarget(conn, target.channel, label, () =>
             options
-              ? (conn as SlackConnection).postMessage(target.channel!, anchorText, undefined, {
+              ? (conn as SlackConnection).postMessage(target.channel!, anchorText, container, {
                   ...options,
                   ...(msg.sourceRepository ? { sourceRepository: msg.sourceRepository } : {})
                 })
-              : conn.postMessage(target.channel!, anchorText)
+              : conn.postMessage(target.channel!, anchorText, container)
           )
           if (ts) {
             const mustMaterializeThread = !isDmTarget && rootPostNeedsThreadMaterialization(msg.platform)
@@ -34082,12 +34084,15 @@ export class Daemon {
                 return { message: null, postAttempted, notStarted: { status: 'failed', reason: THREAD_NOT_CREATED } }
               }
             } else {
-              thread = threadKeyForPost(
-                msg.platform,
-                target.channel,
-                (conn as Pick<MessageGateway, 'threadOfPost'>).threadOfPost?.(ts) ?? ts,
-                isDmTarget
-              )
+              // Inside a container the session keys on the CONTAINER, matching inbound canonicalization.
+              thread =
+                container ??
+                threadKeyForPost(
+                  msg.platform,
+                  target.channel,
+                  (conn as Pick<MessageGateway, 'threadOfPost'>).threadOfPost?.(ts) ?? ts,
+                  isDmTarget
+                )
             }
             // The posted anchor is both the thread root and the authoritative
             // transcript/read cursor. Keep the synthetic msgId as the durable turn id.
@@ -34136,7 +34141,7 @@ export class Daemon {
   private async fireTrigger(
     agentId: string,
     msg: NormalizedMessage,
-    target: { channel?: string; integrationId?: string } | undefined,
+    target: { channel?: string; integrationId?: string; thread?: string } | undefined,
     anchorText: string,
     label: string,
     onSessionReady?: (sessionId: string) => void,
