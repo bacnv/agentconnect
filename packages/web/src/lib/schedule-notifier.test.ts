@@ -16,6 +16,7 @@ function cron(over: Partial<CronDto> = {}): CronDto {
     timezone: 'UTC',
     targetPlatform: 'slack',
     targetChannel: null,
+    targetThread: null,
     targetIntegrationId: null,
     trigger: 'check the dependency updates',
     enabled: true,
