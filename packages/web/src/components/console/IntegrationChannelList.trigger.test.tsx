@@ -49,7 +49,17 @@ async function openMenu(channels: Parameters<typeof IntegrationChannelList>[0]['
     b.getAttribute('aria-label')?.startsWith('Settings for')
   )!
   await act(async () => trigger.click())
-  return [...[...document.querySelectorAll('[role="group"]')][0]!.querySelectorAll('[role="menuitemradio"]')]
+  // The popover stacks Session mode above Respond to, and Off in an unnamed group of its own, so
+  // the trigger menu is named rather than first.
+  const respond = [...document.querySelectorAll('[role="group"]')].find((g) =>
+    g.getAttribute('aria-labelledby')?.endsWith('-trigger')
+  )
+  const items = [...(respond ?? document).querySelectorAll('[role="menuitemradio"]')]
+  // Off lives in its own unnamed group below Respond to, so a platform's full vocabulary spans both.
+  const off = [...document.querySelectorAll('[role="group"]')].find(
+    (g) => !g.getAttribute('aria-labelledby') && g.querySelector('[role="menuitemradio"]')?.textContent === 'Off'
+  )
+  return off ? [...items, ...off.querySelectorAll('[role="menuitemradio"]')] : items
 }
 
 const menuFor = async (platform: string): Promise<string[]> =>
