@@ -859,6 +859,7 @@ export interface CronDto {
   timezone: string
   targetPlatform: string // §6.8 open id — derived from the anchor integration
   targetChannel: string | null
+  targetThread: string | null // the forum/topic container the fire posts inside; null elsewhere
   targetIntegrationId: string | null // null ⇒ legacy row / integration uninstalled
   trigger: string
   enabled: boolean
@@ -881,6 +882,7 @@ export interface UpsertCronInput {
   timezone?: string // omitted ⇒ UTC on create, the schedule's existing zone on an edit
   targetPlatform: string // §6.8 open id — derived from the anchor integration
   targetChannel?: string // optional — absent ⇒ headless fire
+  targetThread?: string // the forum/topic container the fire posts inside
   targetIntegrationId?: string // the agent integration posting the anchor (platform derives from it)
   trigger: string
   enabled: boolean

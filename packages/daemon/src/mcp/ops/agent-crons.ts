@@ -2,6 +2,7 @@
 import type { AgentCronReq, AgentCronResult } from '@agentconnect.md/protocol'
 import { z } from 'zod'
 import { obj, type ToolDescriptor } from '../../tool-schema/descriptor.js'
+import { threadContainerFor } from '../../platforms/thread-keys.js'
 import {
   isCheckCoordinate,
   isGettingToKnowCoordinate,
@@ -11,6 +12,14 @@ import { parseArgs, requiredString } from './args.js'
 import type { SessionContext, ToolHandler } from './context.js'
 
 export interface AgentCronToolDeps {
+  /** The physical thread the live turn arrived in — what a fire must land inside (a forum topic). */
+  deliveryThreadNow?: (ctx: {
+    agentId: string
+    platform: string
+    channel: string
+    thread: string
+    transportScope?: string
+  }) => string | undefined
   agentCrons?: {
     /** Whether this session may manage its agent's crons: the CP serves them and the session is not a check, research or getting-to-know task. */
     offered(ctx: SessionContext): boolean
@@ -136,9 +145,14 @@ export const saveSchedule: ToolHandler<AgentCronToolDeps> = async (ctx, args, de
   const postHere = a.postHere ?? (a.cronId === undefined && ctx.integrationId !== undefined)
   if (a.postHere === true && ctx.integrationId === undefined)
     throw new Error('this conversation has no chat integration to post into; set postHere to false')
+  // The live turn's container (a forum topic) outranks the opening one, so a fire lands where the asker spoke.
+  const thread =
+    postHere && ctx.integrationId !== undefined
+      ? threadContainerFor(ctx.platform, deps.deliveryThreadNow?.(ctx) ?? ctx.deliveryThread)
+      : undefined
   const target =
     postHere && ctx.integrationId !== undefined
-      ? { integrationId: ctx.integrationId, channel: ctx.channel }
+      ? { integrationId: ctx.integrationId, channel: ctx.channel, ...(thread !== undefined ? { thread } : {}) }
       : a.postHere === false || a.cronId === undefined
         ? null
         : undefined
