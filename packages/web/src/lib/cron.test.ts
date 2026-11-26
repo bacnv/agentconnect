@@ -131,6 +131,16 @@ describe('cronUpdateInput', () => {
     expect(cronTimezoneInput(null, 'Asia/Singapore')).toEqual({ timezone: 'Asia/Singapore' })
   })
 
+  it('leaves the target thread to the CP, so re-pointing a channel drops the old topic', () => {
+    // The edit dialog overrides targetChannel but not targetThread. If this builder sent the stored
+    // topic, the CP's explicit-value-wins branch would keep it and a re-pointed cron would fire
+    // message_thread_id=<old topic> into a chat where it does not exist.
+    const withTopic = { ...cron, targetChannel: '-1002335659793', targetThread: '6' }
+    expect(cronUpdateInput(withTopic, { targetChannel: '-100999' })).not.toHaveProperty('targetThread')
+    // An edit that keeps the channel still keeps the topic — through the CP's rule, not this body.
+    expect(cronUpdateInput(withTopic)).not.toHaveProperty('targetThread')
+  })
+
   it('passes through only an unchanged stored timezone that Intl does not recognize', () => {
     const legacyCron = { ...cron, timezone: 'Legacy/Stored_Zone' }
 

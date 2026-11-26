@@ -2027,8 +2027,6 @@
         "hint": "Trigger: when the agent responds here",
         "decision": "By decision",
         "decisionHint": "A saved decision evaluates each message in {room}. The agent replies only for the outcomes you select.",
-        "coordinator": "Decided by the coordinator",
-        "coordinatorHint": "Under Auto every message in {room} reaches the coordinator, which decides what to answer.",
         "mentionTopic": "mention + reply",
         "mentionTopicHint": "The agent responds only when mentioned or when someone replies to one of its own messages in {room}."
       },

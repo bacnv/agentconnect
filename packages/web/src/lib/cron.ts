@@ -130,7 +130,6 @@ export function cronUpdateInput(cron: CronDto, overrides: Partial<UpsertCronInpu
     timezone: cron.timezone,
     targetPlatform: cron.targetPlatform,
     ...(cron.targetChannel ? { targetChannel: cron.targetChannel } : {}),
-    ...(cron.targetThread ? { targetThread: cron.targetThread } : {}),
     ...(cron.targetIntegrationId ? { targetIntegrationId: cron.targetIntegrationId } : {}),
     trigger: cron.trigger,
     enabled: cron.enabled,
