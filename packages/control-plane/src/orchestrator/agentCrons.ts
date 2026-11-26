@@ -92,7 +92,8 @@ export function agentCronView(cron: CronRecord): AgentCronView {
       ? {
           platform: toDbPlatform(cron.targetPlatform),
           channel: cron.targetChannel,
-          integrationId: cron.targetIntegrationId
+          integrationId: cron.targetIntegrationId,
+          thread: cron.targetThread
         }
       : null,
     lastRunAt: cron.lastRunAt ? cron.lastRunAt.toISOString() : null
@@ -155,12 +156,22 @@ export class AgentCronService {
         schedule,
         timezone: input.timezone,
         ...(targetPlatform ? { targetPlatform } : {}),
-        // An edit without a target keeps the one the cron has.
+        // An edit without a target keeps the one the cron has, topic included.
         ...(input.target
-          ? { targetChannel: input.target.channel, ...(targetIntegrationId ? { targetIntegrationId } : {}) }
+          ? {
+              targetChannel: input.target.channel,
+              // A re-point at another channel drops the old topic; the same channel keeps it.
+              ...(input.target.thread !== undefined
+                ? { targetThread: input.target.thread }
+                : existing?.targetThread && existing.targetChannel === input.target.channel
+                  ? { targetThread: existing.targetThread }
+                  : {}),
+              ...(targetIntegrationId ? { targetIntegrationId } : {})
+            }
           : input.target === undefined && existing?.targetChannel
             ? {
                 targetChannel: existing.targetChannel,
+                ...(existing.targetThread ? { targetThread: existing.targetThread } : {}),
                 ...(existing.targetIntegrationId ? { targetIntegrationId: existing.targetIntegrationId } : {})
               }
             : {}),

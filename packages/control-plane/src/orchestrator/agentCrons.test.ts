@@ -22,6 +22,7 @@ function row(input: UpsertCronInput): CronRecord {
     timezone: input.timezone,
     targetPlatform: input.targetPlatform ?? 'slack',
     targetChannel: input.targetChannel ?? null,
+    targetThread: input.targetThread ?? null,
     targetIntegrationId: input.targetIntegrationId ?? null,
     trigger: input.trigger,
     enabled: input.enabled ?? true,

@@ -25,6 +25,7 @@ const spec: IntegrationSpec = {
     mode: 'shared',
     bindRules: [],
     mutedChannels: [],
+    affinityDenied: [],
     gated: false,
     sessionModes: [],
     decisions: { bindings: [], definitions: [] }

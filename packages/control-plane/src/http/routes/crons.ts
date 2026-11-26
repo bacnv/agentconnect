@@ -48,6 +48,7 @@ function toDto(c: CronRecord, ctx: ViewCtx, failing?: CronFailureStreak): CronDt
     // to fire into); narrow the wider protocol platform to the DTO's target enum.
     targetPlatform: toDbPlatform(c.targetPlatform),
     targetChannel: c.targetChannel,
+    targetThread: c.targetThread,
     targetIntegrationId: c.targetIntegrationId,
     trigger: c.trigger,
     enabled: c.enabled,
@@ -194,6 +195,12 @@ export function cronRoutes(deps: HttpDeps) {
             timezone: req.body.timezone ?? existing?.timezone ?? 'UTC',
             targetPlatform,
             ...(req.body.targetChannel ? { targetChannel: req.body.targetChannel } : {}),
+            // A topic survives an edit that omits it, but not a re-point at another channel.
+            ...(req.body.targetThread
+              ? { targetThread: req.body.targetThread }
+              : existing?.targetThread && req.body.targetChannel === existing.targetChannel
+                ? { targetThread: existing.targetThread }
+                : {}),
             ...(targetIntegrationId ? { targetIntegrationId } : {}),
             trigger: req.body.trigger,
             enabled: req.body.enabled,

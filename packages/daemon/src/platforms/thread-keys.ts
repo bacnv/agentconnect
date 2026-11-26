@@ -47,6 +47,8 @@ interface ThreadKeyStrategy {
   /** Whether a non-DM root post must be turned into a native thread before its
    *  session can be initialized. */
   materializeRootThread?: boolean
+  /** The thread coordinate when it names a CONTAINER rather than a sub-conversation — see `threadContainerFor`. */
+  container?: (thread: string) => string | undefined
 }
 
 const STRATEGIES = new Map<string, ThreadKeyStrategy>([
@@ -54,7 +56,15 @@ const STRATEGIES = new Map<string, ThreadKeyStrategy>([
   ['discord', { key: (channel, ts, isDm) => (isDm ? channel : ts), dmSensitive: true, materializeRootThread: true }],
   // Reply-based threading: numeric message ids enter the `tg:` reply-root
   // namespace; DMs are one continuous conversation.
-  ['telegram', { key: (_channel, ts, isDm) => (isDm ? 'dm' : /^\d+$/.test(ts) ? `tg:${ts}` : ts), dmSensitive: true }],
+  // A NUMERIC thread is the one exception — a forum topic, a container this key cannot express.
+  [
+    'telegram',
+    {
+      key: (_channel, ts, isDm) => (isDm ? 'dm' : /^\d+$/.test(ts) ? `tg:${ts}` : ts),
+      dmSensitive: true,
+      container: (thread) => (/^\d+$/.test(thread) ? thread : undefined)
+    }
+  ],
   // Group chats thread off the post; a DM is keyed by the chat itself.
   ['feishu', { key: (channel, ts, isDm) => (isDm ? channel : ts), dmSensitive: true }],
   // A Space keys on the post's `spaces/…/threads/…` (the gateway's `threadOfPost`), a DM on the Space itself.
@@ -139,4 +149,9 @@ export function threadRootResolver(
 ): ((thread: string) => string | undefined) | undefined {
   const root = THREAD_ROOTS.get(platform)
   return root ? (thread) => root(thread, isDm) : undefined
+}
+
+/** The thread coordinate when it names a CONTAINER (a Telegram forum topic) rather than a sub-conversation. */
+export function threadContainerFor(platform: string, thread: string | undefined): string | undefined {
+  return thread === undefined ? undefined : STRATEGIES.get(platform)?.container?.(thread)
 }

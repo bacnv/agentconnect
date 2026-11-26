@@ -71,6 +71,18 @@ describe('the agent cron tools', () => {
     ])
   })
 
+  it('fires into the forum topic the live turn arrived in, not the chat root', async () => {
+    const { sent, deps } = harness()
+    const topic = { ...slack, platform: 'telegram', channel: '-100', thread: '42', deliveryThread: '42' }
+    await executeTool(
+      topic as unknown as SessionContext,
+      'saveSchedule',
+      { schedule: '0 9 * * *', timezone: 'Asia/Shanghai', prompt: 'p' },
+      deps
+    )
+    expect(sent[0]).toMatchObject({ cron: { target: { channel: '-100', thread: '42' } } })
+  })
+
   it('creates a one-shot task headless where there is no chat integration', async () => {
     const { sent, deps } = harness()
     await executeTool(

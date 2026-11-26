@@ -3240,6 +3240,8 @@ export interface UpsertCronInput {
   targetPlatform?: Platform
   /** Optional output routing; absent ⇒ headless fire. */
   targetChannel?: string
+  /** The forum/topic container the fire posts inside (Telegram); absent elsewhere. */
+  targetThread?: string
   /** The agent integration whose connection posts the anchor (validated against
    *  the cron's agent at the API); absent ⇒ daemon falls back to the first. */
   targetIntegrationId?: IntegrationId
@@ -3266,6 +3268,7 @@ export interface CronRecord {
   timezone: string
   targetPlatform: Platform
   targetChannel: string | null
+  targetThread: string | null // the forum/topic container the fire posts inside; null elsewhere
   targetIntegrationId: IntegrationId | null // null ⇒ legacy / integration uninstalled (SetNull)
   trigger: string
   enabled: boolean

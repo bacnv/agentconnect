@@ -130,7 +130,9 @@ export const CronDefSchema = z.object({
       // §6.8 open id; the daemon serves any platform it has a connection for.
       platform: z.string().min(1),
       channel: z.string(),
-      integrationId: z.string().optional()
+      integrationId: z.string().optional(),
+      // The forum/topic container the fire posts inside (Telegram); absent where a thread is a sub-conversation.
+      thread: z.string().optional()
     })
     .optional(),
   trigger: z.string(),

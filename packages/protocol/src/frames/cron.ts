@@ -25,7 +25,12 @@ export const CronTarget = z.object({
   // The agent integration whose connection posts the anchor — targets come from
   // the owning agent's integrations, so the daemon posts through the right bot
   // when the agent has several. Absent (legacy defs) ⇒ first integration.
-  integrationId: z.string().uuid().optional()
+  integrationId: z.string().uuid().optional(),
+  // The forum/topic container the conversation lived in, where the platform has one: a fire must
+  // land inside it, not at the chat root (Telegram General). Slack's thread_ts is a
+  // sub-conversation and is never sent — a wake opens a new thread rather than revive the one that
+  // asked. Optional and unstrict, so an older CP strips it and degrades to the prior behaviour.
+  thread: z.string().optional()
 })
 export type CronTarget = z.infer<typeof CronTarget>
 
@@ -117,7 +122,14 @@ export const AgentCronView = z.object({
   once: z.boolean(),
   trigger: z.string(),
   enabled: z.boolean(),
-  target: z.object({ platform: z.string(), channel: z.string(), integrationId: z.string().nullable() }).nullable(),
+  target: z
+    .object({
+      platform: z.string(),
+      channel: z.string(),
+      integrationId: z.string().nullable(),
+      thread: z.string().nullable()
+    })
+    .nullable(),
   lastRunAt: z.string().datetime().nullable()
 })
 export type AgentCronView = z.infer<typeof AgentCronView>
@@ -134,7 +146,12 @@ export const AgentCronSave = z.object({
   enabled: z.boolean().optional(),
   // A channel of one of the agent's integrations to post each run into; null makes it headless, absent keeps an edited cron's.
   target: z
-    .object({ integrationId: z.string().uuid(), channel: z.string().min(1).max(200) })
+    .object({
+      integrationId: z.string().uuid(),
+      channel: z.string().min(1).max(200),
+      // The forum/topic container to fire INSIDE (Telegram); absent elsewhere.
+      thread: z.string().max(200).optional()
+    })
     .nullable()
     .optional()
 })
